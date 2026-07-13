@@ -1,0 +1,15 @@
+test-harness/coldbox/
+test-harness/modules/
+test-harness/logs/
+test-harness/tests/results/
+test-harness/.env
+.box/
+workbench/
+build/
+.box.json
+engine/
+*.class
+*.jar
+.idea/
+.vscode/
+settings.xml

@@ -1,0 +1,32 @@
+{
+    "name": "Listmonk Module",
+    "slug": "listmonk-module",
+    "version": "0.1.0",
+    "type": "modules",
+    "shortDescription": "ColdBox module for interacting with a Listmonk email server",
+    "description": "A ColdBox module providing a fluent API client for Listmonk email marketing and transactional email. Uses Hyper for HTTP and supports subscribers, lists, templates, campaigns, and transactional email.",
+    "author": "inLeague LLC",
+    "license": "MIT",
+    "homepage": "https://github.com/inLeague/listmonk-module",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/inLeague/listmonk-module"
+    },
+    "bugs": "https://github.com/inLeague/listmonk-module/issues",
+    "keywords": "listmonk email coldbox module transactional subscribers",
+    "dependencies": {
+        "hyper": "^8.0.0"
+    },
+    "devDependencies": {
+        "coldbox": "^7.0.0",
+        "testbox": "^6.0.0"
+    },
+    "boxlang": {
+        "minimumVersion": "1.0.0"
+    },
+    "scripts": {
+        "format": "cfformat run models,ModuleConfig.cfc --overwrite",
+        "format:check": "cfformat check models,ModuleConfig.cfc .cfformat.json",
+        "start:boxlang": "server start serverConfigFile=server-boxlang.json"
+    }
+}
