@@ -1,5 +1,8 @@
 /**
  * Unit tests for ListmonkResponse wrapper.
+ *
+ * Pure unit tests — no WireBox, no HTTP. Tests the response
+ * wrapping logic in isolation.
  */
 component extends="testbox.system.BaseSpec" {
 
@@ -12,7 +15,7 @@ component extends="testbox.system.BaseSpec" {
                     return { "data" : true };
                 };
 
-                var response = getInstance( "ListmonkResponse" ).init( mockRaw );
+                var response = new listmonkModule.models.ListmonkResponse().init( mockRaw );
 
                 expect( response.isOk() ).toBeTrue();
                 expect( response.isError() ).toBeFalse();
@@ -28,7 +31,7 @@ component extends="testbox.system.BaseSpec" {
                     return { "message" : "not found" };
                 };
 
-                var response = getInstance( "ListmonkResponse" ).init( mockRaw );
+                var response = new listmonkModule.models.ListmonkResponse().init( mockRaw );
 
                 expect( response.isError() ).toBeTrue();
                 expect( response.isOk() ).toBeFalse();
@@ -43,7 +46,7 @@ component extends="testbox.system.BaseSpec" {
                     return { "message" : "internal server error" };
                 };
 
-                var response = getInstance( "ListmonkResponse" ).init( mockRaw );
+                var response = new listmonkModule.models.ListmonkResponse().init( mockRaw );
 
                 expect( response.isError() ).toBeTrue();
                 expect( response.status() ).toBe( 500 );
@@ -62,7 +65,7 @@ component extends="testbox.system.BaseSpec" {
                     };
                 };
 
-                var response = getInstance( "ListmonkResponse" ).init( mockRaw );
+                var response = new listmonkModule.models.ListmonkResponse().init( mockRaw );
 
                 expect( response.data() ).toBeStruct();
                 expect( response.data().id ).toBe( 1 );
@@ -81,7 +84,7 @@ component extends="testbox.system.BaseSpec" {
                     };
                 };
 
-                var response = getInstance( "ListmonkResponse" ).init( mockRaw );
+                var response = new listmonkModule.models.ListmonkResponse().init( mockRaw );
 
                 expect( response.data() ).toBeArray();
                 expect( response.data() ).toHaveLength( 2 );
@@ -94,7 +97,7 @@ component extends="testbox.system.BaseSpec" {
                     return { "data" : true };
                 };
 
-                var response = getInstance( "ListmonkResponse" ).init( mockRaw );
+                var response = new listmonkModule.models.ListmonkResponse().init( mockRaw );
 
                 expect( response.raw() ).toBe( mockRaw );
             } );
@@ -106,7 +109,7 @@ component extends="testbox.system.BaseSpec" {
                     throw( type = "JsonException" );
                 };
 
-                var response = getInstance( "ListmonkResponse" ).init( mockRaw );
+                var response = new listmonkModule.models.ListmonkResponse().init( mockRaw );
 
                 expect( response.isOk() ).toBeTrue();
                 expect( response.data() ).toBe( "" );
