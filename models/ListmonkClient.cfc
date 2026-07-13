@@ -549,28 +549,63 @@ component {
 
     // --- Settings --------------------------------------------------------------
 
+    /**
+     * Get all Listmonk settings.
+     *
+     * @return ListmonkResponse with data = full settings struct.
+     */
     function getSettings() {
-        throw( type = "ListmonkNotImplemented", message = "getSettings is not yet implemented" );
+        return _request( "GET", "/api/settings" );
     }
 
+    /**
+     * Update all Listmonk settings.
+     *
+     * @data Complete settings struct to replace current settings.
+     * @return ListmonkResponse.
+     */
     function updateSettings( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "updateSettings is not yet implemented" );
+        return _request( "PUT", "/api/settings", body = arguments.data );
     }
 
+    /**
+     * Update a specific setting by key.
+     *
+ * @key     Setting key (e.g., "app.site_name", "smtp").
+     * @data    Setting value (struct for complex settings, string/numeric for simple).
+     * @return  ListmonkResponse.
+     */
     function updateSettingsByKey( required string key, required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "updateSettingsByKey is not yet implemented" );
+        return _request( "PUT", "/api/settings/#arguments.key#", body = arguments.data );
     }
 
+    /**
+     * Send a test email via the configured SMTP settings.
+     *
+     * @data Struct with "to" email address to send the test to.
+     * @return ListmonkResponse.
+     */
     function testSMTP( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "testSMTP is not yet implemented" );
+        return _request( "POST", "/api/settings/smtp/test", body = arguments.data );
     }
 
+    /**
+     * Reload the Listmonk application (picks up config changes).
+     *
+     * @return ListmonkResponse.
+     */
     function reloadApp() {
-        throw( type = "ListmonkNotImplemented", message = "reloadApp is not yet implemented" );
+        return _request( "POST", "/api/admin/reload" );
     }
 
+    /**
+     * Get application logs.
+     *
+     * @params Optional query parameters: page, limit.
+     * @return ListmonkResponse with data = log entries.
+     */
     function getLogs( struct params = {} ) {
-        throw( type = "ListmonkNotImplemented", message = "getLogs is not yet implemented" );
+        return _request( "GET", "/api/logs", params = arguments.params );
     }
 
     // --- Users -----------------------------------------------------------------
@@ -679,26 +714,72 @@ component {
 
     // --- System ----------------------------------------------------------------
 
+    /**
+     * Get the Listmonk server configuration (non-sensitive).
+     *
+     * @return ListmonkResponse with data = config struct (version, app_url, etc.).
+     */
     function getConfig() {
-        throw( type = "ListmonkNotImplemented", message = "getConfig is not yet implemented" );
+        return _request( "GET", "/api/config" );
     }
 
+    /**
+     * Get Listmonk version and build info.
+     *
+     * @return ListmonkResponse with data = { version, build_date, ... }.
+     */
     function getAbout() {
-        throw( type = "ListmonkNotImplemented", message = "getAbout is not yet implemented" );
+        return _request( "GET", "/api/about" );
     }
 
+    /**
+     * Get i18n language strings for the given locale.
+     *
+     * @lang Language code (e.g., "en", "fr").
+     * @return ListmonkResponse with data = language string map.
+     */
     function getLang( required string lang ) {
-        throw( type = "ListmonkNotImplemented", message = "getLang is not yet implemented" );
+        return _request( "GET", "/api/lang/#arguments.lang#" );
     }
 
+    /**
+     * Get the server-sent events stream for live updates.
+     *
+     * NOTE: This endpoint returns an SSE stream, not JSON.
+     * The Hyper response will contain the raw text stream.
+     * Most callers should use polling instead of this method.
+     *
+     * @return ListmonkResponse with raw SSE data.
+     */
     function getEvents() {
-        throw( type = "ListmonkNotImplemented", message = "getEvents is not yet implemented" );
+        return _request( "GET", "/api/events" );
     }
 
     // --- Webhooks --------------------------------------------------------------
 
+    /**
+     * Post a bounce webhook (e.g., from SES).
+     *
+     * This is the authenticated bounce endpoint used by internal systems.
+     * For public-facing service webhooks (SES, Postmark, etc.), use the
+     * public /webhooks/service/:service endpoint instead.
+     *
+     * @data Webhook payload (service-specific format).
+     * @return ListmonkResponse.
+     */
     function handleBounceWebhook( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "handleBounceWebhook is not yet implemented" );
+        return _request( "POST", "/webhooks/bounce", body = arguments.data );
+    }
+
+    /**
+     * Post a bounce webhook for a specific service (public, unauthenticated).
+     *
+     * @service Service name (e.g., "ses", "postmark", "mailgun").
+     * @data    Webhook payload (service-specific format).
+     * @return  ListmonkResponse.
+     */
+    function handleServiceWebhook( required string service, required struct data ) {
+        return _request( "POST", "/webhooks/service/#arguments.service#", body = arguments.data );
     }
 
     // --- Public API ------------------------------------------------------------
