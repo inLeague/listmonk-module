@@ -3,6 +3,8 @@ test-harness/modules/
 test-harness/logs/
 test-harness/tests/results/
 test-harness/.env
+test-harness/testbox/
+test-harness/server-*.json
 .box/
 workbench/
 build/
