@@ -1,29 +1,27 @@
 {
-    "version": "3.0.0",
-    "rules": {
-        "tabSize": 4,
-        "maxLineLength": 150,
-        "singleSpaceAroundOperators": true,
-        "singleSpaceAfterKeywords": true,
-        "neverAroundOperators": [],
-        "alwaysAroundBlockExpressions": false,
-        "neverAroundBlockExpressions": [],
-        "spaceBeforeOpeningParens": {
-            "function": false,
-            "if": true,
-            "for": true,
-            "while": true,
-            "switch": true,
-            "catch": true
-        },
-        "braceStyle": "oneTrueBrace",
-        "keepBlankLines": {
-            "maxConssecutive": 1,
-            "maxBefore": 0,
-            "maxAfter": 0
-        }
-    },
-    "ignore": [
-        "test-harness/**"
-    ]
+	"version": "3.0.0",
+	"rules": {
+		"tabSize": 4,
+		"maxLineLength": 150,
+		"singleSpaceAroundOperators": true,
+		"singleSpaceAfterKeywords": true,
+		"neverAroundOperators": [],
+		"alwaysAroundBlockExpressions": false,
+		"neverAroundBlockExpressions": [],
+		"spaceBeforeOpeningParens": {
+			"function": false,
+			"if": true,
+			"for": true,
+			"while": true,
+			"switch": true,
+			"catch": true
+		},
+		"braceStyle": "oneTrueBrace",
+		"keepBlankLines": {
+			"maxConssecutive": 1,
+			"maxBefore": 0,
+			"maxAfter": 0
+		}
+	},
+	"ignore": []
 }

@@ -1,0 +1,32 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup CommandBox
+        uses: Ortus-Solutions/setup-commandbox@v2.0.1
+
+      - name: Install module dependencies
+        run: box install
+
+      - name: Install test-harness dependencies
+        working-directory: test-harness
+        run: box install
+
+      - name: Start BoxLang server
+        run: box server start serverConfigFile=server-boxlang.json
+
+      - name: Run TestBox
+        working-directory: test-harness
+        run: box testbox run runner=http://127.0.0.1:60299/tests/runner.cfm
+
+      - name: Stop server
+        if: always()
+        run: box server stop serverConfigFile=server-boxlang.json

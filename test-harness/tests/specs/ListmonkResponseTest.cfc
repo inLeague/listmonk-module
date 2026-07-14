@@ -10,7 +10,7 @@ component extends="testbox.system.BaseSpec" {
         describe( "ListmonkResponse", function() {
             it( "should report ok for 2xx status", function() {
                 var mockRaw = new HyperResponseMock( 200, "OK", { "data" : true } );
-                var response = new listmonkModule.models.ListmonkResponse( mockRaw );
+                var response = new listmonk.models.ListmonkResponse( mockRaw );
 
                 expect( response.isOk() ).toBeTrue();
                 expect( response.isError() ).toBeFalse();
@@ -21,7 +21,7 @@ component extends="testbox.system.BaseSpec" {
 
             it( "should report error for 4xx status", function() {
                 var mockRaw = new HyperResponseMock( 404, "Not Found", { "message" : "not found" } );
-                var response = new listmonkModule.models.ListmonkResponse( mockRaw );
+                var response = new listmonk.models.ListmonkResponse( mockRaw );
 
                 expect( response.isError() ).toBeTrue();
                 expect( response.isOk() ).toBeFalse();
@@ -31,7 +31,7 @@ component extends="testbox.system.BaseSpec" {
 
             it( "should report error for 5xx status", function() {
                 var mockRaw = new HyperResponseMock( 500, "Internal Server Error", { "message" : "internal server error" } );
-                var response = new listmonkModule.models.ListmonkResponse( mockRaw );
+                var response = new listmonk.models.ListmonkResponse( mockRaw );
 
                 expect( response.isError() ).toBeTrue();
                 expect( response.status() ).toBe( 500 );
@@ -45,7 +45,7 @@ component extends="testbox.system.BaseSpec" {
                         "name"  : "Test User"
                     }
                 } );
-                var response = new listmonkModule.models.ListmonkResponse( mockRaw );
+                var response = new listmonk.models.ListmonkResponse( mockRaw );
 
                 expect( response.data() ).toBeStruct();
                 expect( response.data().id ).toBe( 1 );
@@ -59,7 +59,7 @@ component extends="testbox.system.BaseSpec" {
                         { "id" : 2, "name" : "List 2" }
                     ]
                 } );
-                var response = new listmonkModule.models.ListmonkResponse( mockRaw );
+                var response = new listmonk.models.ListmonkResponse( mockRaw );
 
                 expect( response.data() ).toBeArray();
                 expect( response.data() ).toHaveLength( 2 );
@@ -67,7 +67,7 @@ component extends="testbox.system.BaseSpec" {
 
             it( "should return raw HyperResponse", function() {
                 var mockRaw = new HyperResponseMock( 200, "OK", { "data" : true } );
-                var response = new listmonkModule.models.ListmonkResponse( mockRaw );
+                var response = new listmonk.models.ListmonkResponse( mockRaw );
 
                 expect( response.raw() ).toBe( mockRaw );
             } );
@@ -79,7 +79,7 @@ component extends="testbox.system.BaseSpec" {
                 brokenMock.json = function() {
                     throw( type = "JsonException" );
                 };
-                var response = new listmonkModule.models.ListmonkResponse( brokenMock );
+                var response = new listmonk.models.ListmonkResponse( brokenMock );
 
                 expect( response.isOk() ).toBeTrue();
                 expect( response.data() ).toBe( "" );

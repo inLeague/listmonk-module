@@ -7,9 +7,8 @@ test-harness/testbox/
 test-harness/server-*.json
 .box/
 workbench/
-build/
-.box.json
-engine/
+.tmp/
+.artifacts/
 *.class
 *.jar
 .idea/

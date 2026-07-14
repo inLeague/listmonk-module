@@ -30,7 +30,7 @@ component extends="testbox.system.BaseSpec" {
                 var h = new hyper.models.HyperBuilder();
                 h.fake( arguments.fakePatterns );
 
-                var c = new listmonkModule.models.ListmonkClient( h );
+                var c = new listmonk.models.ListmonkClient( h );
 
                 return { client: c, hyper: h };
             }
@@ -288,29 +288,32 @@ component extends="testbox.system.BaseSpec" {
             } );
 
             // ---------------------------------------------------------------
-            // Unimplemented stubs
+            // Transactional defaults from module settings
             // ---------------------------------------------------------------
 
-            describe( "unimplemented stubs", function() {
-                it( "should throw for getCampaigns", function() {
-                    var pair = createFakedClient();
-                    expect( function() {
-                        pair.client.getCampaigns();
-                    } ).toThrow( "ListmonkNotImplemented" );
-                } );
+            describe( "sendTransactional defaults", function() {
+                it( "should apply module subscriberMode and contentType when omitted", function() {
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
 
-                it( "should throw for getUsers", function() {
-                    var pair = createFakedClient();
-                    expect( function() {
-                        pair.client.getUsers();
-                    } ).toThrow( "ListmonkNotImplemented" );
-                } );
+                    // Re-init with custom module defaults (createFakedClient already inited once)
+                    pair.client.setHyper( pair.hyper );
+                    pair.client.setModuleSettings( {
+                        subscriberMode : "fallback",
+                        contentType    : "plain"
+                    } );
 
-                it( "should throw for getDashboardCharts", function() {
-                    var pair = createFakedClient();
-                    expect( function() {
-                        pair.client.getDashboardCharts();
-                    } ).toThrow( "ListmonkNotImplemented" );
+                    var result = pair.client.sendTransactional( {
+                        subscriber_emails : [ "test@example.com" ],
+                        template_id       : 1,
+                        data              : { subject : "Hello" }
+                    } );
+
+                    expect( result.isOk() ).toBeTrue();
+                    expect( pair.hyper.getFakeRequestCount() ).toBeGTE( 1 );
                 } );
             } );
 

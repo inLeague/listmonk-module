@@ -4,439 +4,665 @@
  * Uses Hyper's verb methods (get, post, put, etc.) directly — each call
  * creates a fresh HyperRequest with the builder's defaults applied.
  *
- * In a ColdBox context, the HyperBuilder is injected via WireBox.
- * In a non-ColdBox context, pass it via setHyper() or init().
+ * In a ColdBox context, the HyperBuilder and module settings are injected via WireBox.
+ * In a non-ColdBox context, pass them via setHyper() / init().
+ *
+ * @author inLeague LLC
  */
-component {
+component accessors="true" {
 
-    /**
-     * Initialize with an optional HyperBuilder.
-     * If not provided, will attempt to resolve from WireBox at request time.
-     *
-     * @hyper Optional HyperBuilder instance (for testing or non-ColdBox use).
-     */
-    function init( hyper ) {
-        if ( !isNull( arguments.hyper ) ) {
-            variables.hyperBuilder = arguments.hyper;
-        }
-        return this;
-    }
+	/**
+	 * Pre-configured HyperBuilder for Listmonk requests
+	 */
+	property name="hyperBuilder" inject="ListmonkHyperClient@listmonk" required="false";
 
-    /**
-     * Get the underlying HyperBuilder instance.
-     */
-    function getHyper() {
-        if ( isNull( variables.hyperBuilder ) ) {
-            variables.hyperBuilder = wirebox.getInstance( "ListmonkHyperClient" );
-        }
-        return variables.hyperBuilder;
-    }
+	/**
+	 * Module settings (baseUrl, apiToken, subscriberMode, contentType, ...)
+	 */
+	property name="moduleSettings" inject="coldbox:moduleSettings:listmonk" required="false";
 
-    /**
-     * Set the HyperBuilder instance (for testing/faking).
-     */
-    function setHyper( required hyper ) {
-        variables.hyperBuilder = arguments.hyper;
-    }
+	/**
+	 * LogBox logger
+	 */
+	property name="log" inject="logbox:logger:{this}" required="false";
 
-    /**
-     * Execute an HTTP request and return a wrapped ListmonkResponse.
-     */
-    public function _request(
-        required string method,
-        required string path,
-        struct body = {},
-        struct params = {}
-    ) {
-        // Get a fresh HyperRequest from the builder with defaults + fake config applied.
-        // We use new() to get the request, set its properties, then send() directly.
-        // This avoids BoxLang issues with onMissingMethod/invoke inside private methods.
-        var hyperInstance = getHyper();
-        writeLog( text = "_request called | hyperBuilder type=#getMetaData( hyperInstance ).name# | hasFake=#structKeyExists( hyperInstance, 'fakeConfiguration' )#" );
-        var req = hyperInstance.new();
-        writeLog( text = "req created | type=#getMetaData( req ).name# | hasFakeConfig=#structKeyExists( req, 'fakeConfiguration' )# | fullUrl=#req.getFullUrl()#" );
+	/**
+	 * Initialize with optional HyperBuilder and settings (for testing or non-ColdBox use).
+	 *
+	 * @hyper Optional HyperBuilder instance
+	 * @moduleSettings Optional module settings struct
+	 *
+	 * @return ListmonkClient
+	 */
+	function init( hyper, struct moduleSettings ) {
+		if ( !isNull( arguments.hyper ) ) {
+			variables.hyperBuilder = arguments.hyper;
+		}
+		if ( !isNull( arguments.moduleSettings ) ) {
+			variables.moduleSettings = arguments.moduleSettings;
+		}
+		if ( isNull( variables.moduleSettings ) ) {
+			variables.moduleSettings = {
+				"subscriberMode" : "external",
+				"contentType"    : "html"
+			};
+		}
+		return this;
+	}
 
-        // Configure per-request properties
-        req.setUrl( arguments.path );
-        req.setProperties( { "method": arguments.method } );
-        if ( !structIsEmpty( arguments.body ) ) {
-            req.setProperties( { "body": arguments.body } );
-        }
-        if ( !structIsEmpty( arguments.params ) ) {
-            req.withQueryParams( arguments.params );
-        }
+	/**
+	 * Get the underlying HyperBuilder instance.
+	 *
+	 * @return HyperBuilder
+	 * @throws ListmonkException - When no HyperBuilder has been configured
+	 */
+	function getHyper() {
+		if ( isNull( variables.hyperBuilder ) ) {
+			throw(
+				type    = "ListmonkException",
+				message = "Listmonk HyperBuilder is not configured. Inject ListmonkHyperClient@listmonk or call setHyper()."
+			);
+		}
+		return variables.hyperBuilder;
+	}
 
-        // Execute the request — send() handles faking internally
-        var rawResponse = "";
-        try {
-            rawResponse = req.send();
-        } catch ( any e ) {
-            writeLog( text = "send() exception: #e.message# | type=#e.type# | method=#arguments.method# path=#arguments.path#" );
-            rethrow;
-        }
-        // Return the wrapped response
-        return new listmonkModule.models.ListmonkResponse( rawResponse );
-    }
+	/**
+	 * Set the HyperBuilder instance (for testing/faking).
+	 *
+	 * @hyper HyperBuilder instance
+	 *
+	 * @return ListmonkClient
+	 */
+	function setHyper( required hyper ) {
+		variables.hyperBuilder = arguments.hyper;
+		return this;
+	}
 
-    // =========================================================================
-    // TIER 1 — IMMEDIATE INLEAGUE USE
-    // =========================================================================
+	/**
+	 * Execute an HTTP request and return a wrapped ListmonkResponse.
+	 *
+	 * @method HTTP method (GET, POST, PUT, PATCH, DELETE)
+	 * @path   API path relative to the configured base URL
+	 * @body   Request body struct (for JSON APIs)
+	 * @params Query string parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	private function makeRequest(
+		required string method,
+		required string path,
+		struct body   = {},
+		struct params = {}
+	) {
+		var hyperInstance = getHyper();
+		var req           = hyperInstance.new();
 
-    function healthCheck() {
-        return _request( method = "GET", path = "/api/health" );
-    }
+		req.setUrl( arguments.path );
+		req.setProperties( { "method" : arguments.method } );
+		if ( !structIsEmpty( arguments.body ) ) {
+			req.setProperties( { "body" : arguments.body } );
+		}
+		if ( !structIsEmpty( arguments.params ) ) {
+			req.withQueryParams( arguments.params );
+		}
 
-    function sendTransactional( required struct payload ) {
-        return _request( method = "POST", path = "/api/tx", body = arguments.payload );
-    }
+		var rawResponse = "";
+		try {
+			rawResponse = req.send();
+		} catch ( any e ) {
+			if ( !isNull( variables.log ) ) {
+				variables.log.error(
+					"Listmonk #arguments.method# #arguments.path# failed: #e.message#",
+					e
+				);
+			}
+			rethrow;
+		}
 
-    function getSubscribers( struct params = {} ) {
-        return _request( method = "GET", path = "/api/subscribers", params = arguments.params );
-    }
+		return new listmonk.models.ListmonkResponse( rawResponse );
+	}
 
-    function getSubscriber( required numeric id ) {
-        return _request( method = "GET", path = "/api/subscribers/#arguments.id#" );
-    }
+	/**
+	 * Merge module defaults into a transactional payload when keys are absent.
+	 *
+	 * @payload Caller-supplied transactional payload
+	 *
+	 * @return struct
+	 */
+	private function applyTransactionalDefaults( required struct payload ) {
+		var body = duplicate( arguments.payload );
+		if ( !structKeyExists( body, "subscriber_mode" ) && structKeyExists( variables.moduleSettings, "subscriberMode" ) ) {
+			body.subscriber_mode = variables.moduleSettings.subscriberMode;
+		}
+		if ( !structKeyExists( body, "content_type" ) && structKeyExists( variables.moduleSettings, "contentType" ) ) {
+			body.content_type = variables.moduleSettings.contentType;
+		}
+		return body;
+	}
 
-    function createSubscriber( required struct data ) {
-        return _request( method = "POST", path = "/api/subscribers", body = arguments.data );
-    }
+	// =========================================================================
+	// Health & Transactional
+	// =========================================================================
 
-    function updateSubscriber( required numeric id, required struct data ) {
-        return _request( method = "PUT", path = "/api/subscribers/#arguments.id#", body = arguments.data );
-    }
+	/**
+	 * Health check endpoint.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function healthCheck() {
+		return makeRequest( method = "GET", path = "/api/health" );
+	}
 
-    function patchSubscriber( required numeric id, required struct data ) {
-        return _request( method = "PATCH", path = "/api/subscribers/#arguments.id#", body = arguments.data );
-    }
+	/**
+	 * Send a transactional email.
+	 *
+	 * Applies moduleSettings.subscriberMode and contentType when those keys
+	 * are not present on the payload.
+	 *
+	 * @payload Transactional send payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function sendTransactional( required struct payload ) {
+		return makeRequest(
+			method = "POST",
+			path   = "/api/tx",
+			body   = applyTransactionalDefaults( arguments.payload )
+		);
+	}
 
-    function deleteSubscriber( required numeric id ) {
-        return _request( method = "DELETE", path = "/api/subscribers/#arguments.id#" );
-    }
+	// =========================================================================
+	// Subscribers
+	// =========================================================================
 
-    function getLists( struct params = {} ) {
-        return _request( method = "GET", path = "/api/lists", params = arguments.params );
-    }
+	/**
+	 * List / query subscribers.
+	 *
+	 * @params Query parameters (page, per_page, query, etc.)
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getSubscribers( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/subscribers", params = arguments.params );
+	}
 
-    function getList( required numeric id ) {
-        return _request( method = "GET", path = "/api/lists/#arguments.id#" );
-    }
+	/**
+	 * Get a subscriber by ID.
+	 *
+	 * @id Subscriber ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getSubscriber( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/subscribers/#arguments.id#" );
+	}
 
-    function createList( required struct data ) {
-        return _request( method = "POST", path = "/api/lists", body = arguments.data );
-    }
+	/**
+	 * Create a subscriber.
+	 *
+	 * @data Subscriber body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function createSubscriber( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/subscribers", body = arguments.data );
+	}
 
-    function updateList( required numeric id, required struct data ) {
-        return _request( method = "PUT", path = "/api/lists/#arguments.id#", body = arguments.data );
-    }
+	/**
+	 * Update a subscriber (PUT).
+	 *
+	 * @id   Subscriber ID
+	 * @data Subscriber body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateSubscriber( required numeric id, required struct data ) {
+		return makeRequest( method = "PUT", path = "/api/subscribers/#arguments.id#", body = arguments.data );
+	}
 
-    function deleteList( required numeric id ) {
-        return _request( method = "DELETE", path = "/api/lists/#arguments.id#" );
-    }
+	/**
+	 * Patch a subscriber.
+	 *
+	 * @id   Subscriber ID
+	 * @data Partial subscriber body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function patchSubscriber( required numeric id, required struct data ) {
+		return makeRequest( method = "PATCH", path = "/api/subscribers/#arguments.id#", body = arguments.data );
+	}
 
-    function deleteLists( required array ids ) {
-        return _request( method = "DELETE", path = "/api/lists", body = { ids: arguments.ids } );
-    }
+	/**
+	 * Delete a subscriber.
+	 *
+	 * @id Subscriber ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteSubscriber( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/subscribers/#arguments.id#" );
+	}
 
-    function getTemplates( struct params = {} ) {
-        return _request( method = "GET", path = "/api/templates", params = arguments.params );
-    }
+	/**
+	 * Manage subscriber list memberships in bulk.
+	 *
+	 * @payload Membership payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function manageSubscriberLists( required struct payload ) {
+		return makeRequest( method = "PUT", path = "/api/subscribers/lists", body = arguments.payload );
+	}
 
-    function getTemplate( required numeric id ) {
-        return _request( method = "GET", path = "/api/templates/#arguments.id#" );
-    }
+	/**
+	 * Manage subscriber list memberships for a specific list.
+	 *
+	 * @listId  List ID
+	 * @payload Membership payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function manageSubscriberListsByList( required numeric listId, required struct payload ) {
+		return makeRequest(
+			method = "PUT",
+			path   = "/api/subscribers/lists/#arguments.listId#",
+			body   = arguments.payload
+		);
+	}
 
-    function createTemplate( required struct data ) {
-        return _request( method = "POST", path = "/api/templates", body = arguments.data );
-    }
+	/**
+	 * Send opt-in confirmation to a subscriber.
+	 *
+	 * @id Subscriber ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function sendOptin( required numeric id ) {
+		return makeRequest( method = "POST", path = "/api/subscribers/#arguments.id#/optin" );
+	}
 
-    function updateTemplate( required numeric id, required struct data ) {
-        return _request( method = "PUT", path = "/api/templates/#arguments.id#", body = arguments.data );
-    }
+	/**
+	 * Blocklist subscribers in bulk.
+	 *
+	 * @payload Blocklist payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function blocklistSubscribers( required struct payload ) {
+		return makeRequest( method = "PUT", path = "/api/subscribers/blocklist", body = arguments.payload );
+	}
 
-    function setDefaultTemplate( required numeric id ) {
-        return _request( method = "PUT", path = "/api/templates/#arguments.id#/default" );
-    }
+	/**
+	 * Blocklist a single subscriber.
+	 *
+	 * @id Subscriber ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function blocklistSubscriber( required numeric id ) {
+		return makeRequest( method = "PUT", path = "/api/subscribers/#arguments.id#/blocklist" );
+	}
 
-    function deleteTemplate( required numeric id ) {
-        return _request( method = "DELETE", path = "/api/templates/#arguments.id#" );
-    }
+	/**
+	 * Delete subscribers by ID list.
+	 *
+	 * @ids Array of subscriber IDs
+	 *
+	 * @return ListmonkResponse
+	 */
+	function bulkDeleteSubscribers( required array ids ) {
+		return makeRequest( method = "DELETE", path = "/api/subscribers", body = { ids : arguments.ids } );
+	}
 
-    // =========================================================================
-    // TIER 2 — LIKELY USE SOON
-    // =========================================================================
+	/**
+	 * Delete subscribers matching a query.
+	 *
+	 * @payload Query delete payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteSubscribersByQuery( required struct payload ) {
+		return makeRequest( method = "POST", path = "/api/subscribers/query/delete", body = arguments.payload );
+	}
 
-    function manageSubscriberLists( required struct payload ) {
-        return _request( method = "PUT", path = "/api/subscribers/lists", body = arguments.payload );
-    }
+	/**
+	 * Blocklist subscribers matching a query.
+	 *
+	 * @payload Query blocklist payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function blocklistSubscribersByQuery( required struct payload ) {
+		return makeRequest( method = "PUT", path = "/api/subscribers/query/blocklist", body = arguments.payload );
+	}
 
-    function manageSubscriberListsByList( required numeric listId, required struct payload ) {
-        return _request( method = "PUT", path = "/api/subscribers/lists/#arguments.listId#", body = arguments.payload );
-    }
+	/**
+	 * Export subscribers.
+	 *
+	 * @params Export query parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	function exportSubscribers( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/subscribers/export", params = arguments.params );
+	}
 
-    function sendOptin( required numeric id ) {
-        return _request( method = "POST", path = "/api/subscribers/#arguments.id#/optin" );
-    }
+	/**
+	 * Get subscriber activity.
+	 *
+	 * @id Subscriber ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getSubscriberActivity( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/subscribers/#arguments.id#/activity" );
+	}
 
-    function blocklistSubscribers( required struct payload ) {
-        return _request( method = "PUT", path = "/api/subscribers/blocklist", body = arguments.payload );
-    }
+	/**
+	 * Export a single subscriber's data.
+	 *
+	 * @id Subscriber ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function exportSubscriberData( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/subscribers/#arguments.id#/export" );
+	}
 
-    function blocklistSubscriber( required numeric id ) {
-        return _request( method = "PUT", path = "/api/subscribers/#arguments.id#/blocklist" );
-    }
+	/**
+	 * Get bounces for a subscriber.
+	 *
+	 * @id Subscriber ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getSubscriberBounces( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/subscribers/#arguments.id#/bounces" );
+	}
 
-    function bulkDeleteSubscribers( required array ids ) {
-        return _request( method = "DELETE", path = "/api/subscribers", body = { ids: arguments.ids } );
-    }
+	/**
+	 * Delete bounces for a subscriber.
+	 *
+	 * @id Subscriber ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteSubscriberBounces( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/subscribers/#arguments.id#/bounces" );
+	}
 
-    function deleteSubscribersByQuery( required struct payload ) {
-        return _request( method = "POST", path = "/api/subscribers/query/delete", body = arguments.payload );
-    }
+	// =========================================================================
+	// Lists
+	// =========================================================================
 
-    function blocklistSubscribersByQuery( required struct payload ) {
-        return _request( method = "PUT", path = "/api/subscribers/query/blocklist", body = arguments.payload );
-    }
+	/**
+	 * List mailing lists.
+	 *
+	 * @params Query parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getLists( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/lists", params = arguments.params );
+	}
 
-    function exportSubscribers( struct params = {} ) {
-        return _request( method = "GET", path = "/api/subscribers/export", params = arguments.params );
-    }
+	/**
+	 * Get a mailing list by ID.
+	 *
+	 * @id List ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getList( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/lists/#arguments.id#" );
+	}
 
-    function getSubscriberActivity( required numeric id ) {
-        return _request( method = "GET", path = "/api/subscribers/#arguments.id#/activity" );
-    }
+	/**
+	 * Create a mailing list.
+	 *
+	 * @data List body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function createList( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/lists", body = arguments.data );
+	}
 
-    function exportSubscriberData( required numeric id ) {
-        return _request( method = "GET", path = "/api/subscribers/#arguments.id#/export" );
-    }
+	/**
+	 * Update a mailing list.
+	 *
+	 * @id   List ID
+	 * @data List body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateList( required numeric id, required struct data ) {
+		return makeRequest( method = "PUT", path = "/api/lists/#arguments.id#", body = arguments.data );
+	}
 
-    function getSubscriberBounces( required numeric id ) {
-        return _request( method = "GET", path = "/api/subscribers/#arguments.id#/bounces" );
-    }
+	/**
+	 * Delete a mailing list.
+	 *
+	 * @id List ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteList( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/lists/#arguments.id#" );
+	}
 
-    function deleteSubscriberBounces( required numeric id ) {
-        return _request( method = "DELETE", path = "/api/subscribers/#arguments.id#/bounces" );
-    }
+	/**
+	 * Delete mailing lists by ID list.
+	 *
+	 * @ids Array of list IDs
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteLists( required array ids ) {
+		return makeRequest( method = "DELETE", path = "/api/lists", body = { ids : arguments.ids } );
+	}
 
-    function getSettings() {
-        return _request( method = "GET", path = "/api/settings" );
-    }
+	// =========================================================================
+	// Templates
+	// =========================================================================
 
-    function updateSettings( required struct data ) {
-        return _request( method = "PUT", path = "/api/settings", body = arguments.data );
-    }
+	/**
+	 * List templates.
+	 *
+	 * @params Query parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getTemplates( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/templates", params = arguments.params );
+	}
 
-    function updateSettingsByKey( required string key, required struct data ) {
-        return _request( method = "PUT", path = "/api/settings/#arguments.key#", body = arguments.data );
-    }
+	/**
+	 * Get a template by ID.
+	 *
+	 * @id Template ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getTemplate( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/templates/#arguments.id#" );
+	}
 
-    function testSMTP( required struct data ) {
-        return _request( method = "POST", path = "/api/settings/smtp/test", body = arguments.data );
-    }
+	/**
+	 * Create a template.
+	 *
+	 * @data Template body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function createTemplate( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/templates", body = arguments.data );
+	}
 
-    function reloadApp() {
-        return _request( method = "POST", path = "/api/admin/reload" );
-    }
+	/**
+	 * Update a template.
+	 *
+	 * @id   Template ID
+	 * @data Template body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateTemplate( required numeric id, required struct data ) {
+		return makeRequest( method = "PUT", path = "/api/templates/#arguments.id#", body = arguments.data );
+	}
 
-    function getLogs( struct params = {} ) {
-        return _request( method = "GET", path = "/api/logs", params = arguments.params );
-    }
+	/**
+	 * Set a template as the default.
+	 *
+	 * @id Template ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function setDefaultTemplate( required numeric id ) {
+		return makeRequest( method = "PUT", path = "/api/templates/#arguments.id#/default" );
+	}
 
-    function getConfig() {
-        return _request( method = "GET", path = "/api/config" );
-    }
+	/**
+	 * Delete a template.
+	 *
+	 * @id Template ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteTemplate( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/templates/#arguments.id#" );
+	}
 
-    function getAbout() {
-        return _request( method = "GET", path = "/api/about" );
-    }
+	// =========================================================================
+	// Settings & System
+	// =========================================================================
 
-    function getLang( required string lang ) {
-        return _request( method = "GET", path = "/api/lang/#arguments.lang#" );
-    }
+	/**
+	 * Get Listmonk settings.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getSettings() {
+		return makeRequest( method = "GET", path = "/api/settings" );
+	}
 
-    function getEvents() {
-        return _request( method = "GET", path = "/api/events" );
-    }
+	/**
+	 * Update Listmonk settings.
+	 *
+	 * @data Settings body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateSettings( required struct data ) {
+		return makeRequest( method = "PUT", path = "/api/settings", body = arguments.data );
+	}
 
-    function handleBounceWebhook( required struct data ) {
-        return _request( method = "POST", path = "/webhooks/bounce", body = arguments.data );
-    }
+	/**
+	 * Update a settings key.
+	 *
+	 * @key  Settings key
+	 * @data Settings body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateSettingsByKey( required string key, required struct data ) {
+		return makeRequest( method = "PUT", path = "/api/settings/#arguments.key#", body = arguments.data );
+	}
 
-    function handleServiceWebhook( required string service, required struct data ) {
-        return _request( method = "POST", path = "/webhooks/service/#arguments.service#", body = arguments.data );
-    }
+	/**
+	 * Test SMTP configuration.
+	 *
+	 * @data SMTP test payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function testSMTP( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/settings/smtp/test", body = arguments.data );
+	}
 
-    // =========================================================================
-    // TIER 3 — STUBS
-    // =========================================================================
+	/**
+	 * Reload the Listmonk application.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function reloadApp() {
+		return makeRequest( method = "POST", path = "/api/admin/reload" );
+	}
 
-    function getSubscribersByQuery( required struct payload ) {
-        throw( type = "ListmonkNotImplemented", message = "getSubscribersByQuery is not yet implemented" );
-    }
-    function getCampaigns( struct params = {} ) {
-        throw( type = "ListmonkNotImplemented", message = "getCampaigns is not yet implemented" );
-    }
-    function getRunningCampaignStats() {
-        throw( type = "ListmonkNotImplemented", message = "getRunningCampaignStats is not yet implemented" );
-    }
-    function getCampaign( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "getCampaign is not yet implemented" );
-    }
-    function getCampaignAnalytics( required string type, struct params = {} ) {
-        throw( type = "ListmonkNotImplemented", message = "getCampaignAnalytics is not yet implemented" );
-    }
-    function previewCampaign( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "previewCampaign is not yet implemented" );
-    }
-    function previewCampaignArchive( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "previewCampaignArchive is not yet implemented" );
-    }
-    function getCampaignContent( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "getCampaignContent is not yet implemented" );
-    }
-    function setCampaignContent( required numeric id, required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "setCampaignContent is not yet implemented" );
-    }
-    function previewCampaignText( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "previewCampaignText is not yet implemented" );
-    }
-    function testCampaign( required numeric id, required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "testCampaign is not yet implemented" );
-    }
-    function createCampaign( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "createCampaign is not yet implemented" );
-    }
-    function updateCampaign( required numeric id, required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "updateCampaign is not yet implemented" );
-    }
-    function updateCampaignStatus( required numeric id, required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "updateCampaignStatus is not yet implemented" );
-    }
-    function updateCampaignArchive( required numeric id, required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "updateCampaignArchive is not yet implemented" );
-    }
-    function deleteCampaigns( required array ids ) {
-        throw( type = "ListmonkNotImplemented", message = "deleteCampaigns is not yet implemented" );
-    }
-    function deleteCampaign( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "deleteCampaign is not yet implemented" );
-    }
-    function getBounces( struct params = {} ) {
-        throw( type = "ListmonkNotImplemented", message = "getBounces is not yet implemented" );
-    }
-    function getBounce( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "getBounce is not yet implemented" );
-    }
-    function blocklistBouncedSubscribers() {
-        throw( type = "ListmonkNotImplemented", message = "blocklistBouncedSubscribers is not yet implemented" );
-    }
-    function deleteBounces( struct params = {} ) {
-        throw( type = "ListmonkNotImplemented", message = "deleteBounces is not yet implemented" );
-    }
-    function deleteBounce( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "deleteBounce is not yet implemented" );
-    }
-    function getMedia( struct params = {} ) {
-        throw( type = "ListmonkNotImplemented", message = "getMedia is not yet implemented" );
-    }
-    function getMediaItem( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "getMediaItem is not yet implemented" );
-    }
-    function uploadMedia( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "uploadMedia is not yet implemented" );
-    }
-    function deleteMedia( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "deleteMedia is not yet implemented" );
-    }
-    function getImportStatus() {
-        throw( type = "ListmonkNotImplemented", message = "getImportStatus is not yet implemented" );
-    }
-    function getImportLogs() {
-        throw( type = "ListmonkNotImplemented", message = "getImportLogs is not yet implemented" );
-    }
-    function importSubscribers( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "importSubscribers is not yet implemented" );
-    }
-    function stopImport() {
-        throw( type = "ListmonkNotImplemented", message = "stopImport is not yet implemented" );
-    }
-    function getProfile() {
-        throw( type = "ListmonkNotImplemented", message = "getProfile is not yet implemented" );
-    }
-    function updateProfile( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "updateProfile is not yet implemented" );
-    }
-    function getUsers( struct params = {} ) {
-        throw( type = "ListmonkNotImplemented", message = "getUsers is not yet implemented" );
-    }
-    function getUser( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "getUser is not yet implemented" );
-    }
-    function createUser( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "createUser is not yet implemented" );
-    }
-    function updateUser( required numeric id, required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "updateUser is not yet implemented" );
-    }
-    function deleteUser( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "deleteUser is not yet implemented" );
-    }
-    function deleteUserBatch( required array ids ) {
-        throw( type = "ListmonkNotImplemented", message = "deleteUserBatch is not yet implemented" );
-    }
-    function generateTOTP( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "generateTOTP is not yet implemented" );
-    }
-    function enableTOTP( required numeric id, required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "enableTOTP is not yet implemented" );
-    }
-    function disableTOTP( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "disableTOTP is not yet implemented" );
-    }
-    function getUserRoles() {
-        throw( type = "ListmonkNotImplemented", message = "getUserRoles is not yet implemented" );
-    }
-    function getListRoles() {
-        throw( type = "ListmonkNotImplemented", message = "getListRoles is not yet implemented" );
-    }
-    function createUserRole( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "createUserRole is not yet implemented" );
-    }
-    function createListRole( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "createListRole is not yet implemented" );
-    }
-    function updateUserRole( required numeric id, required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "updateUserRole is not yet implemented" );
-    }
-    function updateListRole( required numeric id, required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "updateListRole is not yet implemented" );
-    }
-    function deleteRole( required numeric id ) {
-        throw( type = "ListmonkNotImplemented", message = "deleteRole is not yet implemented" );
-    }
-    function gcSubscribers( required string type ) {
-        throw( type = "ListmonkNotImplemented", message = "gcSubscribers is not yet implemented" );
-    }
-    function gcCampaignAnalytics( required string type ) {
-        throw( type = "ListmonkNotImplemented", message = "gcCampaignAnalytics is not yet implemented" );
-    }
-    function exportCampaignAnalytics( required string type ) {
-        throw( type = "ListmonkNotImplemented", message = "exportCampaignAnalytics is not yet implemented" );
-    }
-    function gcSubscriptions() {
-        throw( type = "ListmonkNotImplemented", message = "gcSubscriptions is not yet implemented" );
-    }
-    function getDashboardCharts() {
-        throw( type = "ListmonkNotImplemented", message = "getDashboardCharts is not yet implemented" );
-    }
-    function getDashboardCounts() {
-        throw( type = "ListmonkNotImplemented", message = "getDashboardCounts is not yet implemented" );
-    }
-    function getPublicLists() {
-        throw( type = "ListmonkNotImplemented", message = "getPublicLists is not yet implemented" );
-    }
-    function publicSubscription( required struct data ) {
-        throw( type = "ListmonkNotImplemented", message = "publicSubscription is not yet implemented" );
-    }
+	/**
+	 * Get application logs.
+	 *
+	 * @params Query parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getLogs( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/logs", params = arguments.params );
+	}
+
+	/**
+	 * Get server config.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getConfig() {
+		return makeRequest( method = "GET", path = "/api/config" );
+	}
+
+	/**
+	 * Get about / version info.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getAbout() {
+		return makeRequest( method = "GET", path = "/api/about" );
+	}
+
+	/**
+	 * Get language pack.
+	 *
+	 * @lang Language code
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getLang( required string lang ) {
+		return makeRequest( method = "GET", path = "/api/lang/#arguments.lang#" );
+	}
+
+	/**
+	 * Get SSE / events stream endpoint metadata.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getEvents() {
+		return makeRequest( method = "GET", path = "/api/events" );
+	}
+
+	/**
+	 * Forward a bounce webhook payload.
+	 *
+	 * @data Bounce webhook body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function handleBounceWebhook( required struct data ) {
+		return makeRequest( method = "POST", path = "/webhooks/bounce", body = arguments.data );
+	}
+
+	/**
+	 * Forward a service webhook payload.
+	 *
+	 * @service Service name
+	 * @data    Webhook body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function handleServiceWebhook( required string service, required struct data ) {
+		return makeRequest(
+			method = "POST",
+			path   = "/webhooks/service/#arguments.service#",
+			body   = arguments.data
+		);
+	}
 
 }

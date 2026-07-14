@@ -6,57 +6,63 @@
  */
 component {
 
-    // Module Properties
-    this.title       = "Listmonk Module";
-    this.author      = "inLeague LLC";
-    this.webURL      = "https://github.com/inLeague/listmonk-module";
-    this.description = "ColdBox module for interacting with a Listmonk email server";
-    this.version     = "0.1.0";
-    this.cfmapping   = "listmonkModule";
-    this.dependencies = [ "hyper" ];
+	// Module Properties
+	this.title          = "Listmonk";
+	this.author         = "inLeague LLC";
+	this.webURL         = "https://github.com/inLeague/listmonk-module";
+	this.description    = "ColdBox module for interacting with a Listmonk email server";
+	this.version        = "0.1.0";
+	this.modelNamespace = "listmonk";
+	this.cfmapping      = "listmonk";
+	this.dependencies   = [ "hyper" ];
+	this.autoMapModels  = true;
 
-    /**
-     * Configure module settings and WireBox mappings.
-     *
-     * Settings can be overridden in the host app via:
-     *   moduleSettings = { listmonkModule = { baseUrl: "...", apiToken: "..." } }
-     */
-    function configure() {
-        settings = {
-            "baseUrl"          : "http://localhost:9002",
-            "apiToken"         : "",
-            "timeout"          : 30,
-            "subscriberMode"   : "external",
-            "contentType"      : "html"
-        };
+	/**
+	 * Configure module settings.
+	 *
+	 * Settings can be overridden in the host app via:
+	 *   moduleSettings = { listmonk = { baseUrl: "...", apiToken: "..." } }
+	 */
+	function configure() {
+		settings = {
+			"baseUrl"        : "http://localhost:9002",
+			"apiToken"       : "",
+			"timeout"        : 30,
+			"subscriberMode" : "external",
+			"contentType"    : "html"
+		};
+	}
 
-        // WireBox mappings — ListmonkClient gets its HyperBuilder via init()
-        wirebox.map( "ListmonkClient" )
-            .to( "#this.cfmapping#.models.ListmonkClient" )
-            .asSingleton();
-    }
+	/**
+	 * Called after WireBox aspects are loaded.
+	 * Registers a dedicated Hyper client for Listmonk (separate from HyperBuilder@hyper).
+	 *
+	 * @see https://hyper.ortusbooks.com/customizing-hyper/hyper-clients
+	 */
+	function afterAspectsLoad() {
+		binder
+			.map( "ListmonkHyperClient@listmonk" )
+			.to( "hyper.models.HyperBuilder" )
+			.asSingleton()
+			.initWith(
+				baseUrl    = settings.baseUrl,
+				timeout    = settings.timeout,
+				bodyFormat = "json",
+				headers    = {
+					"Authorization" : "Token #settings.apiToken#",
+					"Content-Type"  : "application/json",
+					"Accept"        : "application/json"
+				}
+			);
+	}
 
-    /**
-     * Called after WireBox aspects are loaded.
-     * Registers the pre-configured Hyper client for Listmonk.
-     *
-     * Follows the Hyper docs pattern for custom HTTP clients:
-     * https://hyper.ortusbooks.com/customizing-hyper/hyper-clients
-     */
-    function afterAspectsLoad() {
-        var injector = wirebox.getInjector();
-
-        injector.getInstance( "HyperBuilder@hyper" )
-            .setBaseUrl( settings.baseUrl )
-            .setTimeout( settings.timeout )
-            .asJson()
-            .withHeaders( {
-                "Authorization" : "Token #settings.apiToken#"
-            } )
-            .registerAs( "ListmonkHyperClient" );
-    }
-
-    function onUnload() {
-    }
+	/**
+	 * Fired when the module is unregistered and unloaded.
+	 */
+	function onUnload() {
+		if ( binder.mappingExists( "ListmonkHyperClient@listmonk" ) ) {
+			binder.unMap( "ListmonkHyperClient@listmonk" );
+		}
+	}
 
 }
