@@ -1,5 +1,5 @@
 {
-    "name":"listmonk-module-boxlang",
+    "name":"listmonk-boxlang",
     "app":{
         "cfengine":"boxlang@1"
     },

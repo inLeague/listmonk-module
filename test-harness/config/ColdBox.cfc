@@ -1,11 +1,11 @@
 /**
- * ColdBox configuration for listmonk-module test harness.
+ * ColdBox configuration for the listmonk module test harness.
  */
 component {
 
 	function configure() {
 		coldbox = {
-			appName                 : "listmonk-module-tests",
+			appName                 : "listmonk-tests",
 			reinitPassword          : "",
 			handlersIndexAutoReload : true,
 			modulesExternalLocation : [],

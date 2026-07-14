@@ -1,14 +1,11 @@
 /**
- * Test harness application for listmonk-module.
+ * Test harness application for the listmonk module.
  *
- * MODULE_NAME matches the repository / ForgeBox folder slug used for
- * registerAndActivateModule. WireBox aliases use modelNamespace "listmonk"
- * from ModuleConfig.cfc.
+ * MODULE_NAME is derived from the checkout folder name so local registration
+ * matches the on-disk directory. WireBox aliases always use modelNamespace
+ * "listmonk" from ModuleConfig.cfc.
  */
 component {
-
-	// Folder slug used by registerAndActivateModule( moduleroot / MODULE_NAME )
-	request.MODULE_NAME = "listmonk-module";
 
 	// Application properties
 	this.name              = hash( getCurrentTemplatePath() );
@@ -28,24 +25,18 @@ component {
 	// Mappings
 	this.mappings[ "/root" ] = COLDBOX_APP_ROOT_PATH;
 
-	// Map back to its root (Ortus module-template pattern)
-	moduleRootPath = REReplaceNoCase(
-		this.mappings[ "/root" ],
-		"#request.MODULE_NAME#(\\|/)test-harness(\\|/)",
-		""
-	);
-	modulePath = REReplaceNoCase(
-		this.mappings[ "/root" ],
-		"test-harness(\\|/)",
-		""
-	);
+	// Parent of test-harness = module root (works for any checkout folder name)
+	modulePath = reReplaceNoCase( COLDBOX_APP_ROOT_PATH, "test-harness[\\/]?$", "" );
+	modulePath = reReplace( modulePath, "[\\/]+$", "" );
+	request.MODULE_NAME = listLast( modulePath, "/\" );
+	moduleRootPath      = getDirectoryFromPath( modulePath );
 
 	// Module Root + Path Mappings
-	this.mappings[ "/moduleroot" ]             = moduleRootPath;
-	this.mappings[ "/#request.MODULE_NAME#" ]  = modulePath;
+	this.mappings[ "/moduleroot" ]            = moduleRootPath;
+	this.mappings[ "/#request.MODULE_NAME#" ] = modulePath;
 	// CF mapping from ModuleConfig this.cfmapping
-	this.mappings[ "/listmonk" ]               = modulePath;
-	this.mappings[ "/tests" ]                  = COLDBOX_APP_ROOT_PATH & "tests";
+	this.mappings[ "/listmonk" ]              = modulePath;
+	this.mappings[ "/tests" ]                 = COLDBOX_APP_ROOT_PATH & "tests";
 
 	// Hyper module mapping
 	this.mappings[ "/hyper" ] = COLDBOX_APP_ROOT_PATH & "modules/hyper";

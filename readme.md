@@ -5,13 +5,13 @@ A ColdBox module for interacting with a [Listmonk](https://listmonk.app) email s
 ## Requirements
 
 - BoxLang 1.0.0+
-- ColdBox 7.0.0+
+- ColdBox 8.0.0+
 - Hyper 8.0.0+
 
 ## Installation
 
 ```bash
-box install listmonk-module
+box install listmonk
 ```
 
 ## Configuration
@@ -136,6 +136,9 @@ All methods return a `ListmonkResponse` with:
 ## Development
 
 ```bash
+# Install test runtime (ColdBox, TestBox, Hyper)
+cd test-harness && box install && cd ..
+
 # Format CFML
 box run-script format
 

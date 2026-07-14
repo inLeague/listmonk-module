@@ -15,6 +15,5 @@ workbench/
 .vscode/
 settings.xml
 
-coldbox/
-testbox/
+# Optional local root installs (e.g. Hyper for packaging checks)
 modules/

@@ -10,6 +10,10 @@
 - `sendTransactional()` applies module `subscriberMode` / `contentType` when omitted from the payload
 - Removed unimplemented Tier-3 stub methods that only threw `ListmonkNotImplemented`
 - Aligned packaging and tooling with Ortus module-template conventions (ignore rules, CFLint, EditorConfig, DocBox build, CI, format scripts)
+- Require ColdBox `^8.0.0` for native BoxLang support (test harness + docs)
+- Fix TestBox `runner.cfm` for BoxLang (`directory` discovery + `writeOutput( run() )`)
+- Keep ColdBox/TestBox installs in `test-harness` only; root `box.json` ships Hyper as the sole packaged dependency
+- ForgeBox package slug is `listmonk` (`box install listmonk`)
 
 ## 0.1.0
 
