@@ -4,7 +4,7 @@ A ColdBox module for interacting with a [Listmonk](https://listmonk.app) email s
 
 ## Requirements
 
-- BoxLang 1.0.0+
+- BoxLang 1.0.0+ (PRs for Lucee or ACF welcome, it wouldn't take much)
 - ColdBox 8.0.0+
 - Hyper 8.0.0+
 
