@@ -3,7 +3,7 @@
     "version":"0.0.0",
     "slug":"listmonk-module-test-harness",
     "dependencies":{
-        "coldbox":"^7.0.0",
+        "coldbox":"^8.0.0",
         "testbox":"^6.0.0",
         "hyper":"^8.0.0"
     },

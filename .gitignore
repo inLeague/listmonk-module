@@ -14,3 +14,7 @@ workbench/
 .idea/
 .vscode/
 settings.xml
+
+coldbox/
+testbox/
+modules/

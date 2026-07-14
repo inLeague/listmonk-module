@@ -1,41 +1,46 @@
 {
-	"name": "Listmonk Module",
-	"slug": "listmonk-module",
-	"version": "0.1.0",
-	"type": "modules",
-	"shortDescription": "ColdBox module for interacting with a Listmonk email server",
-	"description": "A ColdBox module providing a fluent API client for Listmonk email marketing and transactional email. Uses Hyper for HTTP and supports subscribers, lists, templates, campaigns, and transactional email.",
-	"author": "inLeague LLC",
-	"license": "MIT",
-	"homepage": "https://github.com/inLeague/listmonk-module",
-	"documentation": "https://github.com/inLeague/listmonk-module",
-	"changelog": "https://github.com/inLeague/listmonk-module/blob/main/changelog.md",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/inLeague/listmonk-module"
-	},
-	"bugs": "https://github.com/inLeague/listmonk-module/issues",
-	"keywords": "listmonk email coldbox module transactional subscribers",
-	"dependencies": {
-		"hyper": "^8.0.0"
-	},
-	"devDependencies": {
-		"coldbox": "^7.0.0",
-		"testbox": "^6.0.0"
-	},
-	"boxlang": {
-		"minimumVersion": "1.0.0"
-	},
-	"ignore": [
-		"**/.*",
-		"test-harness",
-		"build"
-	],
-	"scripts": {
-		"format": "cfformat run models/,ModuleConfig.cfc,test-harness/tests/specs/,test-harness/config/,test-harness/Application.cfc --overwrite",
-		"format:watch": "cfformat watch models/,ModuleConfig.cfc,test-harness/tests/specs/,test-harness/config/,test-harness/Application.cfc ./.cfformat.json",
-		"format:check": "cfformat check models/,ModuleConfig.cfc,test-harness/tests/specs/,test-harness/config/,test-harness/Application.cfc ./.cfformat.json",
-		"start:boxlang": "server start serverConfigFile=server-boxlang.json",
-		"test": "cd test-harness && box testbox run"
-	}
+    "name":"Listmonk Module",
+    "slug":"listmonk-module",
+    "version":"0.1.0",
+    "type":"modules",
+    "shortDescription":"ColdBox module for interacting with a Listmonk email server",
+    "description":"A ColdBox module providing a fluent API client for Listmonk email marketing and transactional email. Uses Hyper for HTTP and supports subscribers, lists, templates, campaigns, and transactional email.",
+    "author":"inLeague LLC",
+    "license":"MIT",
+    "homepage":"https://github.com/inLeague/listmonk-module",
+    "documentation":"https://github.com/inLeague/listmonk-module",
+    "changelog":"https://github.com/inLeague/listmonk-module/blob/main/changelog.md",
+    "repository":{
+        "type":"git",
+        "url":"https://github.com/inLeague/listmonk-module"
+    },
+    "bugs":"https://github.com/inLeague/listmonk-module/issues",
+    "keywords":"listmonk email coldbox module transactional subscribers",
+    "dependencies":{
+        "hyper":"^8.0.0"
+    },
+    "devDependencies":{
+        "coldbox":"^8.0.0",
+        "testbox":"^6.0.0"
+    },
+    "boxlang":{
+        "minimumVersion":"1.0.0"
+    },
+    "ignore":[
+        "**/.*",
+        "test-harness",
+        "build"
+    ],
+    "scripts":{
+        "format":"cfformat run models/,ModuleConfig.cfc,test-harness/tests/specs/,test-harness/config/,test-harness/Application.cfc --overwrite",
+        "format:watch":"cfformat watch models/,ModuleConfig.cfc,test-harness/tests/specs/,test-harness/config/,test-harness/Application.cfc ./.cfformat.json",
+        "format:check":"cfformat check models/,ModuleConfig.cfc,test-harness/tests/specs/,test-harness/config/,test-harness/Application.cfc ./.cfformat.json",
+        "start:boxlang":"server start serverConfigFile=server-boxlang.json",
+        "test":"cd test-harness && box testbox run"
+    },
+    "installPaths":{
+        "hyper":"modules/hyper/",
+        "coldbox":"coldbox/",
+        "testbox":"testbox/"
+    }
 }
