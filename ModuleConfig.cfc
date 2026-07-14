@@ -16,26 +16,21 @@ component {
     this.dependencies = [ "hyper" ];
 
     /**
-     * Configure module settings and WireBox bindings.
+     * Configure module settings and WireBox mappings.
      *
      * Settings can be overridden in the host app via:
      *   moduleSettings = { listmonkModule = { baseUrl: "...", apiToken: "..." } }
      */
     function configure() {
         settings = {
-            // Listmonk server base URL (no trailing slash)
             "baseUrl"          : "http://localhost:9002",
-            // API authentication token (Settings > Security in Listmonk admin)
             "apiToken"         : "",
-            // HTTP request timeout in seconds
             "timeout"          : 30,
-            // Default subscriber mode for transactional sends: "external", "default", "fallback"
             "subscriberMode"   : "external",
-            // Default content type: "html" or "plain"
             "contentType"      : "html"
         };
 
-        // WireBox mappings
+        // WireBox mappings — ListmonkClient gets its HyperBuilder via init()
         wirebox.map( "ListmonkClient" )
             .to( "#this.cfmapping#.models.ListmonkClient" )
             .asSingleton();
@@ -44,25 +39,23 @@ component {
     /**
      * Called after WireBox aspects are loaded.
      * Registers the pre-configured Hyper client for Listmonk.
+     *
+     * Follows the Hyper docs pattern for custom HTTP clients:
+     * https://hyper.ortusbooks.com/customizing-hyper/hyper-clients
      */
-    function onLoad() {
-        var baseUrl  = settings.baseUrl;
-        var apiToken = settings.apiToken;
-        var timeout  = settings.timeout;
+    function afterAspectsLoad() {
+        var injector = wirebox.getInjector();
 
-        wirebox.getInstance( "HyperBuilder@hyper" )
-            .setBaseUrl( baseUrl )
-            .setTimeout( timeout )
+        injector.getInstance( "HyperBuilder@hyper" )
+            .setBaseUrl( settings.baseUrl )
+            .setTimeout( settings.timeout )
             .asJson()
             .withHeaders( {
-                "Authorization" : "Token #apiToken#"
+                "Authorization" : "Token #settings.apiToken#"
             } )
             .registerAs( "ListmonkHyperClient" );
     }
 
-    /**
-     * Called when the module is unloaded.
-     */
     function onUnload() {
     }
 

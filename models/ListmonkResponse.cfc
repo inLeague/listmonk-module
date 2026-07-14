@@ -22,7 +22,7 @@ component {
      */
     function init( required rawResponse ) {
         variables._raw = arguments.rawResponse;
-        variables._status = arguments.rawResponse.status ?: 0;
+        variables._status = arguments.rawResponse.getStatusCode() ?: 0;
 
         // Parse the JSON body
         var body = "";

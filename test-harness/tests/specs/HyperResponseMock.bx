@@ -1,0 +1,36 @@
+/**
+ * Simple mock for HyperResponse that works with BoxLang.
+ * Used in test specs to avoid dependency on real Hyper responses.
+ */
+class HyperResponseMock {
+
+    property name="status";
+    property name="statusText";
+    property name="jsonData";
+
+    function init( required numeric statusCode, required string statusText, required any data ) {
+        variables.status = arguments.statusCode;
+        variables.statusText = arguments.statusText;
+        variables.jsonData = arguments.data;
+        return this;
+    }
+
+    function json() {
+        if ( isStruct( variables.jsonData ) || isArray( variables.jsonData ) ) {
+            return variables.jsonData;
+        }
+        if ( isSimpleValue( variables.jsonData ) && len( variables.jsonData ) ) {
+            return deserializeJSON( variables.jsonData );
+        }
+        return {};
+    }
+
+    function getStatusCode() {
+        return variables.status;
+    }
+
+    function getStatusText() {
+        return variables.statusText;
+    }
+
+}

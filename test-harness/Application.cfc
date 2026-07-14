@@ -41,6 +41,9 @@ component {
     this.mappings[ "/listmonkModule" ] = modulePath;
     this.mappings[ "/tests" ] = COLDBOX_APP_ROOT_PATH & "tests";
 
+    // Hyper module mapping
+    this.mappings[ "/hyper" ] = COLDBOX_APP_ROOT_PATH & "modules/hyper";
+
     /**
      * Application start — bootstrap ColdBox.
      */

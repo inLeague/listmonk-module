@@ -14,7 +14,7 @@ component {
         };
 
         environments = {
-            development : "localhost,127\.0\.0\.1"
+            development : "localhost,127\\.0\\.0\\.1"
         };
 
         // Disable auto-module discovery — we register manually in afterAspectsLoad
@@ -38,13 +38,29 @@ component {
 
     /**
      * Register the module under test after WireBox is loaded.
+     * Also register the Hyper client for Listmonk so injection works in tests.
      */
     function afterAspectsLoad( event, interceptData, rc, prc ) {
+        // Register the module
         controller.getModuleService()
             .registerAndActivateModule(
                 moduleName     = "listmonkModule",
                 invocationPath = "moduleroot"
             );
+
+        // Also register the Listmonk Hyper client directly
+        // (in case the module's afterAspectsLoad doesn't fire or fires too late)
+        var injector = wirebox.getInjector();
+        if ( !wirebox.getBinder().mappingExists( "ListmonkHyperClient" ) ) {
+            injector.getInstance( "HyperBuilder@hyper" )
+                .setBaseUrl( "http://localhost:9002" )
+                .setTimeout( 5 )
+                .asJson()
+                .withHeaders( {
+                    "Authorization" : "Token test-token"
+                } )
+                .registerAs( "ListmonkHyperClient" );
+        }
     }
 
 }
