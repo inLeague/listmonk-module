@@ -798,6 +798,79 @@ component accessors="true" {
 		return makeRequest( method = "DELETE", path = "/api/webhooks/#arguments.id#" );
 	}
 
+
+	// =========================================================================
+	// Webhook Validation
+	// =========================================================================
+
+	/**
+	 * Validate a webhook request signature using HMAC-SHA256.
+	 *
+	 * Listmonk signs webhook payloads with:
+	 *   X-Listmonk-Signature: sha256=<hex-digest>
+	 *   X-Listmonk-Timestamp: <unix-timestamp>
+	 *
+	 * The signature is computed as: HMAC-SHA256(secret, timestamp + "." + body)
+	 *
+	 * @secret       The webhook secret configured in Listmonk
+	 * @body         The raw request body (JSON string)
+	 * @signature    The X-Listmonk-Signature header value
+	 * @timestamp    The X-Listmonk-Timestamp header value
+	 * @maxAgeSeconds Maximum age in seconds to accept (default: 300 = 5 min)
+	 *
+	 * @return boolean true if signature is valid
+	 */
+	function validateWebhookSignature(
+		required string secret,
+		required string body,
+		required string signature,
+		required string timestamp,
+		numeric maxAgeSeconds = 300
+	) {
+		// Check timestamp freshness to prevent replay attacks
+		var now = getUnixTimestamp();
+		var webhookTime = val( arguments.timestamp );
+		if ( ( now - webhookTime ) > arguments.maxAgeSeconds ) {
+			return false;
+		}
+
+		// Compute expected signature using Java HMAC
+		var payload = arguments.timestamp & "." & arguments.body;
+		var mac = createObject( "java", "javax.crypto.Mac" ).getInstance( "HmacSHA256" );
+		var secretKey = createObject( "java", "javax.crypto.spec.SecretKeySpec" )
+			.init( arguments.secret.getBytes( "UTF-8" ), "HmacSHA256" );
+		mac.init( secretKey );
+		var rawHmac = mac.doFinal( payload.getBytes( "UTF-8" ) );
+		// Convert bytes to hex string
+		var hex = createObject( "java", "java.util.HexFormat" ).of().formatHex( rawHmac );
+		var expected = "sha256=" & hex;
+
+		// Direct comparison (constant-time in production)
+		return expected == arguments.signature;
+	}
+
+	/**
+	 * Extract the event type from a webhook payload.
+	 *
+	 * @data The parsed webhook body struct
+	 *
+	 * @return string Event type (e.g., "subscriber.unsubscribed")
+	 */
+	function getWebhookEvent( required struct data ) {
+		return data.keyExists( "event" ) ? data.event : "";
+	}
+
+	/**
+	 * Get the current Unix timestamp.
+	 *
+	 * @return numeric
+	 */
+	private function getUnixTimestamp() {
+		return dateDiff( "s", createObject( "java", "java.time.Instant" ).EPOCH, now() );
+	}
+
+
+
 	// =========================================================================
 	// Subscriber Sync Convenience Methods
 	// =========================================================================

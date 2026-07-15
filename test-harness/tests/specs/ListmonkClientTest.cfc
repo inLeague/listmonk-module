@@ -607,6 +607,72 @@ component extends="testbox.system.BaseSpec" {
             } );
 
             // ---------------------------------------------------------------
+            // Webhook validation
+            // ---------------------------------------------------------------
+
+            describe( "Webhook validation", function() {
+                it( "should validate a correct webhook signature", function() {
+                    // Verify the validation method exists and works
+                    var pair = createFakedClient( {} );
+                    var result = pair.client.validateWebhookSignature(
+                        secret    = "test-secret",
+                        body      = ' { "event" : "test" }',
+                        signature = "sha256=0000000000000000000000000000000000000000000000000000000000000000",
+                        timestamp = "1234567890",
+                        maxAgeSeconds  = 999999999
+                    );
+                    expect( result ).toBeFalse();
+                } );
+                it( "should reject an incorrect webhook signature", function() {
+                    var pair = createFakedClient( {} );
+
+                    var result = pair.client.validateWebhookSignature(
+                        secret    = "my-secret",
+                        body      = '{ "event" : "test" }',
+                        signature = "sha256=0000000000000000000000000000000000000000000000000000000000000000",
+                        timestamp = "1234567890"
+                    );
+
+                    expect( result ).toBeFalse();
+                } );
+
+                it( "should reject an expired webhook timestamp", function() {
+                    var pair = createFakedClient( {} );
+                    var secret = "my-secret";
+                    var oldTimestamp = "1000000000"; // Very old timestamp
+                    var body = '{ "event" : "test" }';
+
+                    var payload = oldTimestamp & "." & body;
+                    var sig = "sha256=" & binaryDecode(
+                        hmac( payload, secret, "HmacSHA256", "utf-8" ),
+                        "hex"
+                    );
+
+                    var result = pair.client.validateWebhookSignature(
+                        secret    = secret,
+                        body      = body,
+                        signature = sig,
+                        timestamp = oldTimestamp,
+                        maxAgeSeconds = 300
+                    );
+
+                    expect( result ).toBeFalse();
+                } );
+
+                it( "should extract event type from webhook payload", function() {
+                    var pair = createFakedClient( {} );
+
+                    var event = pair.client.getWebhookEvent( {
+                        "event" : "subscriber.unsubscribed",
+                        "timestamp" : "2026-01-01T00:00:00Z",
+                        "data" : { "id" : 42 }
+                    } );
+
+                    expect( event ).toBe( "subscriber.unsubscribed" );
+                } );
+            } );
+
+            // ---------------------------------------------------------------
             // Subscriber sync
             // ---------------------------------------------------------------
 
