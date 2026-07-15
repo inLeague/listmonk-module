@@ -731,4 +731,122 @@ component accessors="true" {
 		);
 	}
 
+
+
+	// =========================================================================
+	// Subscriber Sync Convenience Methods
+	// =========================================================================
+
+	/**
+	 * Find a subscriber by email within a list.
+	 *
+	 * Uses the subscriber query API with a SQL expression to locate a subscriber
+	 * by email. Returns the first matching subscriber or a not-found response.
+	 *
+	 * @email    Subscriber email address
+	 * @listId   Optional list ID to scope the search
+	 *
+	 * @return ListmonkResponse — data contains the subscriber or null
+	 */
+	function findSubscriberByEmail( required string email, numeric listId ) {
+		var query = "subscribers.email = ''#arguments.email#''";
+		var params = { "query" : query, "per_page" : 1 };
+		if ( !isNull( arguments.listId ) ) {
+			params.list_id = arguments.listId;
+		}
+		return makeRequest( method = "GET", path = "/api/subscribers", params = params );
+	}
+
+	/**
+	 * Upsert a subscriber: find by email, create or update as needed.
+	 *
+	 * If a subscriber with the given email exists, patches their name, attributes,
+	 * and list memberships. If not, creates a new subscriber. Returns the
+	 * subscriber object (with ID) so callers can store the Listmonk subscriber ID.
+	 *
+	 * This is the primary method for syncing inleague users to Listmonk subscribers.
+	 *
+	 * @email               Subscriber email
+	 * @name                Subscriber name
+	 * @listIds             Array of list IDs to subscribe to
+	 * @attribs             Custom attributes (e.g., { unsub_token, roles, seasons })
+	 * @preconfirmSubscriptions If true, subscriptions are confirmed immediately
+	 *
+	 * @return ListmonkResponse — data contains { id, email, name, attribs, lists }
+	 */
+	function upsertSubscriber(
+		required string email,
+		required string name,
+		required array listIds,
+		struct attribs              = {},
+		boolean preconfirmSubscriptions = true
+	) {
+		// Search for existing subscriber by email
+		var search = findSubscriberByEmail( arguments.email );
+		var existingId = 0;
+
+		if ( search.isOk() ) {
+			var results = search.data();
+			if ( isStruct( results ) && structKeyExists( results, "results" ) && arrayLen( results.results ) ) {
+				existingId = results.results[ 1 ].id;
+			}
+		}
+
+		var payload = {
+			"email"                    : arguments.email,
+			"name"                     : arguments.name,
+			"lists"                    : arguments.listIds,
+			"attribs"                  : arguments.attribs,
+			"preconfirm_subscriptions" : arguments.preconfirmSubscriptions
+		};
+
+		if ( existingId ) {
+			// PATCH preserves existing list subscriptions; PUT clears them
+			return patchSubscriber( id = existingId, data = payload );
+		} else {
+			return createSubscriber( data = payload );
+		}
+	}
+
+	/**
+	 * Add subscribers to lists.
+	 *
+	 * @subscriberIds Array of subscriber IDs
+	 * @listIds       Array of list IDs to add them to
+	 * @status        Subscription status: "confirmed", "unconfirmed", or "unsubscribed"
+	 *
+	 * @return ListmonkResponse
+	 */
+	function addSubscribersToLists(
+		required array subscriberIds,
+		required array listIds,
+		string status = "confirmed"
+	) {
+		return manageSubscriberLists( payload = {
+			"ids"              : arguments.subscriberIds,
+			"action"           : "add",
+			"target_list_ids"  : arguments.listIds,
+			"status"           : arguments.status
+		} );
+	}
+
+	/**
+	 * Remove subscribers from lists.
+	 *
+	 * @subscriberIds Array of subscriber IDs
+	 * @listIds       Array of list IDs to remove them from
+	 *
+	 * @return ListmonkResponse
+	 */
+	function removeSubscribersFromLists(
+		required array subscriberIds,
+		required array listIds
+	) {
+		return manageSubscriberLists( payload = {
+			"ids"              : arguments.subscriberIds,
+			"action"           : "remove",
+			"target_list_ids"  : arguments.listIds
+		} );
+	}
+
 }

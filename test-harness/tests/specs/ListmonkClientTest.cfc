@@ -555,6 +555,95 @@ component extends="testbox.system.BaseSpec" {
                 } );
             } );
 
+            // ---------------------------------------------------------------
+            // Subscriber sync
+            // ---------------------------------------------------------------
+
+            describe( "Subscriber sync convenience methods", function() {
+                it( "should upsertSubscriber creating new subscriber", function() {
+                    var pair = createFakedClient( {
+                        "*/api/subscribers*": function( r ) {
+                            return r( 200, "OK", serializeJSON( {
+                                "data" : {
+                                    "id" : 42,
+                                    "email" : "new@test.com",
+                                    "name" : "New User",
+                                    "attribs" : { "unsub_token" : "abc123" },
+                                    "status" : "enabled",
+                                    "lists" : []
+                                }
+                            } ) );
+                        }
+                    } );
+
+                    var result = pair.client.upsertSubscriber(
+                        email  = "new@test.com",
+                        name   = "New User",
+                        listIds = [ 1 ],
+                        attribs = { "unsub_token" : "abc123" }
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should upsertSubscriber patching existing subscriber", function() {
+                    var pair = createFakedClient( {
+                        "*/api/subscribers*": function( r ) {
+                            return r( 200, "OK", serializeJSON( {
+                                "data" : {
+                                    "id" : 42,
+                                    "email" : "existing@test.com",
+                                    "name" : "Existing User",
+                                    "attribs" : { "unsub_token" : "xyz789" },
+                                    "status" : "enabled",
+                                    "lists" : []
+                                }
+                            } ) );
+                        }
+                    } );
+
+                    var result = pair.client.upsertSubscriber(
+                        email  = "existing@test.com",
+                        name   = "Existing User",
+                        listIds = [ 1 ],
+                        attribs = { "unsub_token" : "xyz789" }
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should addSubscribersToLists", function() {
+                    var pair = createFakedClient( {
+                        "*/api/subscribers/lists": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : true } ) );
+                        }
+                    } );
+
+                    var result = pair.client.addSubscribersToLists(
+                        subscriberIds = [ 1, 2, 3 ],
+                        listIds       = [ 10 ],
+                        status        = "confirmed"
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should removeSubscribersFromLists", function() {
+                    var pair = createFakedClient( {
+                        "*/api/subscribers/lists": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : true } ) );
+                        }
+                    } );
+
+                    var result = pair.client.removeSubscribersFromLists(
+                        subscriberIds = [ 1, 2 ],
+                        listIds       = [ 10 ]
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+            } );
+
         } );
     }
 
