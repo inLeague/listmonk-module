@@ -180,12 +180,55 @@ component accessors="true" {
 	 * When attachments are provided, the request switches to multipart/form-data
 	 * with the payload as a JSON "data" field and files as "file" fields.
 	 *
-	 * @payload      Transactional send payload
-	 * @attachments  Array of file attachment structs: [{ name, path, mimeType }]
+	 * When perRecipientData is provided, sends individual requests — one per
+	 * recipient. Each entry's "data" struct is merged into the base payload
+	 * (with per-recipient values winning on conflict). This is the escape hatch
+	 * for custom per-recipient variables like encrypted unsubscribe links.
 	 *
-	 * @return ListmonkResponse
+	 * @payload          Transactional send payload
+	 * @attachments      Array of file attachment structs: [{ name, path, mimeType }]
+	 * @perRecipientData Array of per-recipient structs: [{ email, data }]
+	 *                   When provided, sends one request per recipient.
+	 *                   Each entry's "data" is merged into the base payload.
+	 *                   The "email" key is used as the recipient for that request.
+	 *
+	 * @return ListmonkResponse — for batch, single response; for per-recipient,
+	 *         returns the last response. Check result.isOk() on each if needed.
 	 */
-	function sendTransactional( required struct payload, array attachments = [] ) {
+	function sendTransactional(
+		required struct payload,
+		array attachments       = [],
+		array perRecipientData  = []
+	) {
+		// Per-recipient path: send one request per recipient
+		if ( arrayLen( arguments.perRecipientData ) ) {
+			var lastResult = "";
+			for ( var entry in arguments.perRecipientData ) {
+				var recipientPayload = duplicate( arguments.payload );
+				// Set this recipient's email (single, not array)
+				recipientPayload.delete( "subscriber_emails" );
+				recipientPayload.delete( "subscriber_email" );
+				recipientPayload.subscriber_email = entry.email;
+				// Merge per-recipient data into the base data
+				if ( structKeyExists( entry, "data" ) && isStruct( entry.data ) ) {
+					var baseData = recipientPayload.keyExists( "data" ) && isStruct( recipientPayload.data )
+						? recipientPayload.data
+						: {};
+					structAppend( baseData, entry.data, true );
+					recipientPayload.data = baseData;
+				}
+				applyTransactionalDefaults( recipientPayload );
+				lastResult = makeRequest(
+					method      = "POST",
+					path        = "/api/tx",
+					body        = recipientPayload,
+					attachments = arguments.attachments
+				);
+			}
+			return lastResult;
+		}
+
+		// Batch path: single request to all recipients
 		return makeRequest(
 			method      = "POST",
 			path        = "/api/tx",
