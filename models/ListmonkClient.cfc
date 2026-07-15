@@ -82,27 +82,41 @@ component accessors="true" {
 	/**
 	 * Execute an HTTP request and return a wrapped ListmonkResponse.
 	 *
-	 * @method HTTP method (GET, POST, PUT, PATCH, DELETE)
-	 * @path   API path relative to the configured base URL
-	 * @body   Request body struct (for JSON APIs)
-	 * @params Query string parameters
+	 * @method      HTTP method (GET, POST, PUT, PATCH, DELETE)
+	 * @path        API path relative to the configured base URL
+	 * @body        Request body struct (for JSON APIs)
+	 * @params      Query string parameters
+	 * @attachments Array of file attachment structs: [{ name, path, mimeType }]
 	 *
 	 * @return ListmonkResponse
 	 */
 	private function makeRequest(
 		required string method,
 		required string path,
-		struct body   = {},
-		struct params = {}
+		struct body       = {},
+		struct params     = {},
+		array attachments = []
 	) {
 		var hyperInstance = getHyper();
 		var req           = hyperInstance.new();
 
 		req.setUrl( arguments.path );
 		req.setProperties( { "method" : arguments.method } );
-		if ( !structIsEmpty( arguments.body ) ) {
+
+		// Multipart: wrap body as JSON string in "data" field, attach files
+		if ( arrayLen( arguments.attachments ) ) {
+			req.setProperties( { "body" : { "data" : serializeJSON( arguments.body ) } } );
+			for ( var file in arguments.attachments ) {
+				req.attach(
+					name     = file.name,
+					path     = file.path,
+					mimeType = file.keyExists( "mimeType" ) ? file.mimeType : ""
+				);
+			}
+		} else if ( !structIsEmpty( arguments.body ) ) {
 			req.setProperties( { "body" : arguments.body } );
 		}
+
 		if ( !structIsEmpty( arguments.params ) ) {
 			req.withQueryParams( arguments.params );
 		}
@@ -163,15 +177,20 @@ component accessors="true" {
 	 * Applies moduleSettings.subscriberMode, contentType, and defaultTemplateId
 	 * when those keys are not present on the payload.
 	 *
-	 * @payload Transactional send payload
+	 * When attachments are provided, the request switches to multipart/form-data
+	 * with the payload as a JSON "data" field and files as "file" fields.
+	 *
+	 * @payload      Transactional send payload
+	 * @attachments  Array of file attachment structs: [{ name, path, mimeType }]
 	 *
 	 * @return ListmonkResponse
 	 */
-	function sendTransactional( required struct payload ) {
+	function sendTransactional( required struct payload, array attachments = [] ) {
 		return makeRequest(
-			method = "POST",
-			path   = "/api/tx",
-			body   = applyTransactionalDefaults( arguments.payload )
+			method      = "POST",
+			path        = "/api/tx",
+			body        = applyTransactionalDefaults( arguments.payload ),
+			attachments = arguments.attachments
 		);
 	}
 
