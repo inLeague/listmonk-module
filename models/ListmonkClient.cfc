@@ -43,7 +43,7 @@ component accessors="true" {
 		}
 		if ( isNull( variables.moduleSettings ) ) {
 			variables.moduleSettings = {
-				"subscriberMode" : "external",
+				"subscriberMode" : "fallback",
 				"contentType"    : "html",
 				"defaultTemplateId" : 0
 			};

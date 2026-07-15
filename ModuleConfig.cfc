@@ -28,7 +28,7 @@ component {
 			"baseUrl"        : "http://localhost:9002",
 			"apiToken"       : "",
 			"timeout"        : 30,
-			"subscriberMode" : "external",
+			"subscriberMode" : "fallback",
 			"contentType"    : "html",
 			"defaultTemplateId" : 0
 		};
