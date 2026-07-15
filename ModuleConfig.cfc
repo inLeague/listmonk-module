@@ -37,6 +37,7 @@ component {
 			"timeout"        : 30,
 			"subscriberMode" : "fallback",
 			"contentType"    : "html",
+			"listId"            : 0,
 			"defaultTemplateId" : 0
 		};
 

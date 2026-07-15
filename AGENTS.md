@@ -24,7 +24,47 @@ Avoid `afterAspectsLoad()` solely for this Hyper mapping — it is too late for 
 
 ## Settings
 
-Host override via `moduleSettings.listmonk` (`baseUrl`, `apiToken`, `timeout`, `subscriberMode`, `contentType`, `defaultTemplateId`).
+Host override via `moduleSettings.listmonk` (`baseUrl`, `apiToken`, `timeout`, `subscriberMode`, `contentType`, `defaultTemplateId`, `listId`).
+
+## Multi-league architecture
+
+Each league (inLeague instance) is gated by `clientID` (uniqueidentifier). Listmonk is shared; isolation is achieved through lists and local template tracking.
+
+### Storage model
+
+| Layer | Owns | Example |
+|-------|------|---------|
+| `qClient.listmonk_list_id` | League's Listmonk mailing list | `1` |
+| Module settings | System-wide defaults | `defaultTemplateId = 5` |
+| `listmonk_templates` table | Which templates belong to which league | Region 76 has templates 10, 11, 12 |
+
+### Listmonk templates table
+
+```sql
+listmonk_templates (
+    id                integer PK,
+    clientID          uniqueidentifier FK → clients,
+    listmonkTemplateId integer,       -- ID in Listmonk
+    name              varchar(255),   -- template name
+    createdAt         timestamp,
+    updatedAt         timestamp,
+    UNIQUE (clientID, listmonkTemplateId)
+)
+```
+
+### Flow
+
+1. **League boot** — if `qClient.listmonk_list_id` is null, create a Listmonk list and store the ID
+2. **Template management** — stub for now; only `defaultTemplateId` is available
+3. **Subscriber sync** — `upsertSubscriber()` passes league's `listId` from `qClient.config`
+4. **Send email** — use template from `listmonk_templates` or fall back to `defaultTemplateId`
+
+### Template isolation
+
+Templates are NOT isolated in Listmonk (it has no per-list template concept). Instead:
+- `listmonk_templates` table tracks which templates belong to which league (via `clientID`)
+- API endpoints filter templates by `clientID` before returning to the league
+- Leagues see only their own templates in the UI
 
 ## Tests
 
