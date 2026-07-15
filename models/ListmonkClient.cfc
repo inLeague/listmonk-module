@@ -48,7 +48,6 @@ component accessors="true" {
 			variables.moduleSettings = {
 				"subscriberMode" : "fallback",
 				"contentType"    : "html",
-				"listId"            : 0,
 				"defaultTemplateId" : 0
 			};
 		}
