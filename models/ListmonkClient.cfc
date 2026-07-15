@@ -733,6 +733,71 @@ component accessors="true" {
 
 
 
+
+	// =========================================================================
+	// Webhook Management
+	// =========================================================================
+
+	/**
+	 * List configured webhooks.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getWebhooks() {
+		return makeRequest( method = "GET", path = "/api/webhooks" );
+	}
+
+	/**
+	 * Get a webhook by ID.
+	 *
+	 * @id Webhook ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getWebhook( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/webhooks/#arguments.id#" );
+	}
+
+	/**
+	 * Create a webhook.
+	 *
+	 * @data Webhook body: { url, events, method, headers, enabled }
+	 *
+	 * Example:
+	 *   { url: "https://api.inleague.io/webhooks/listmonk",
+	 *     events: ["subscriber.unsubscribed", "subscriber.optimed"],
+	 *     method: "POST",
+	 *     enabled: true }
+	 *
+	 * @return ListmonkResponse
+	 */
+	function createWebhook( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/webhooks", body = arguments.data );
+	}
+
+	/**
+	 * Update a webhook.
+	 *
+	 * @id   Webhook ID
+	 * @data Webhook body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateWebhook( required numeric id, required struct data ) {
+		return makeRequest( method = "PUT", path = "/api/webhooks/#arguments.id#", body = arguments.data );
+	}
+
+	/**
+	 * Delete a webhook.
+	 *
+	 * @id Webhook ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteWebhook( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/webhooks/#arguments.id#" );
+	}
+
 	// =========================================================================
 	// Subscriber Sync Convenience Methods
 	// =========================================================================

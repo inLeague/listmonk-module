@@ -556,6 +556,57 @@ component extends="testbox.system.BaseSpec" {
             } );
 
             // ---------------------------------------------------------------
+            // Webhook management
+            // ---------------------------------------------------------------
+
+            describe( "Webhook management", function() {
+                it( "should list webhooks", function() {
+                    var pair = createFakedClient( {
+                        "*/api/webhooks": function( r ) {
+                            return r( 200, "OK", serializeJSON( {
+                                "data" : [
+                                    { "id" : 1, "url" : "https://api.inleague.io/webhooks/listmonk", "enabled" : true }
+                                ]
+                            } ) );
+                        }
+                    } );
+
+                    var result = pair.client.getWebhooks();
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should create a webhook", function() {
+                    var pair = createFakedClient( {
+                        "*/api/webhooks": function( r ) {
+                            return r( 200, "OK", serializeJSON( {
+                                "data" : { "id" : 2, "url" : "https://api.inleague.io/webhooks/listmonk", "enabled" : true }
+                            } ) );
+                        }
+                    } );
+
+                    var result = pair.client.createWebhook( {
+                        url     : "https://api.inleague.io/webhooks/listmonk",
+                        events  : [ "subscriber.unsubscribed", "subscriber.optimed" ],
+                        method  : "POST",
+                        enabled : true
+                    } );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should delete a webhook", function() {
+                    var pair = createFakedClient( {
+                        "*/api/webhooks/1": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : true } ) );
+                        }
+                    } );
+
+                    var result = pair.client.deleteWebhook( id = 1 );
+                    expect( result.isOk() ).toBeTrue();
+                } );
+            } );
+
+            // ---------------------------------------------------------------
             // Subscriber sync
             // ---------------------------------------------------------------
 
