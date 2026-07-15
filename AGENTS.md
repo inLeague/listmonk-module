@@ -8,10 +8,12 @@ Typed Hyper HTTP client for [Listmonk](https://listmonk.app). WireBox IDs: `List
 
 | Piece | Convention |
 |-------|------------|
-| `ModuleConfig.onLoad()` | `binder.forceMap( "ListmonkHyperClient@listmonk" )` → `hyper.models.HyperBuilder` with `initWith( baseUrl, timeout, bodyFormat, headers )` using merged `settings` |
+| `ModuleConfig.configure()` | `binder.map("ListmonkHyperClient@listmonk")` → `hyper.models.HyperBuilder` with `initWith(baseUrl, timeout, bodyFormat, headers)` using merged `settings` |
 | `ListmonkClient.hyperBuilder` | **No** `inject=` — set via `init()` / `setHyper()`, or lazily in `getHyper()` from `moduleSettings` |
-| Host apps (optional) | May also map `ListmonkHyperClient@listmonk` early in their WireBox binder; module `forceMap` on load keeps settings/token in sync |
-| Host consumers (e.g. EmailService) | Prefer **lazy** `wirebox.getInstance( "ListmonkClient@listmonk" )` when the host constructs those consumers before modules activate |
+| Host apps (optional) | May also map `ListmonkHyperClient@listmonk` early in their WireBox binder; module `map()` on configure keeps settings/token in sync |
+| Host consumers (e.g. EmailService) | Prefer **lazy** `wirebox.getInstance("ListmonkClient@listmonk")` when the host constructs those consumers before modules activate |
+
+Use standard `binder.map()` in `configure()` — not `forceMap()` in `onLoad()`. `map()` already overwrites existing mappings and matches the convention used by other inleague modules (vendorIntegration, etc.).
 
 Avoid `afterAspectsLoad()` solely for this Hyper mapping — it is too late for common interceptor boot paths.
 

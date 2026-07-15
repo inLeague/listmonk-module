@@ -25,11 +25,6 @@ component accessors="true" {
 	property name="moduleSettings" inject="coldbox:moduleSettings:listmonk" required="false";
 
 	/**
-	 * WireBox (optional) — used to autowire a lazily created HyperBuilder
-	 */
-	property name="wirebox" inject="wirebox" required="false";
-
-	/**
 	 * LogBox logger
 	 */
 	property name="log" inject="logbox:logger:{this}" required="false";
@@ -82,14 +77,6 @@ component accessors="true" {
 			}
 		);
 
-		if ( !isNull( variables.wirebox ) ) {
-			try {
-				variables.wirebox.autowire( variables.hyperBuilder );
-			}
-			catch ( any e ) {
-				// HyperBuilder works without interceptor/async wiring for Listmonk API calls
-			}
-		}
 
 		return variables.hyperBuilder;
 	}
