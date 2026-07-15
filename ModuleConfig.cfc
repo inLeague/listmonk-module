@@ -29,7 +29,8 @@ component {
 			"apiToken"       : "",
 			"timeout"        : 30,
 			"subscriberMode" : "external",
-			"contentType"    : "html"
+			"contentType"    : "html",
+			"defaultTemplateId" : 0
 		};
 	}
 

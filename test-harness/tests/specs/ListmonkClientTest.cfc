@@ -315,6 +315,73 @@ component extends="testbox.system.BaseSpec" {
                     expect( result.isOk() ).toBeTrue();
                     expect( pair.hyper.getFakeRequestCount() ).toBeGTE( 1 );
                 } );
+
+                it( "should apply defaultTemplateId when template_id is omitted", function() {
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
+
+                    pair.client.setHyper( pair.hyper );
+                    pair.client.setModuleSettings( {
+                        subscriberMode    : "external",
+                        contentType       : "html",
+                        defaultTemplateId : 5
+                    } );
+
+                    var result = pair.client.sendTransactional( {
+                        subscriber_emails : [ "test@example.com" ],
+                        data              : { subject : "Hello" }
+                    } );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should not override template_id when already present", function() {
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
+
+                    pair.client.setHyper( pair.hyper );
+                    pair.client.setModuleSettings( {
+                        subscriberMode    : "external",
+                        contentType       : "html",
+                        defaultTemplateId : 5
+                    } );
+
+                    var result = pair.client.sendTransactional( {
+                        subscriber_emails : [ "test@example.com" ],
+                        template_id       : 99,
+                        data              : { subject : "Hello" }
+                    } );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should not apply defaultTemplateId when set to 0", function() {
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
+
+                    pair.client.setHyper( pair.hyper );
+                    pair.client.setModuleSettings( {
+                        subscriberMode    : "external",
+                        contentType       : "html",
+                        defaultTemplateId : 0
+                    } );
+
+                    var result = pair.client.sendTransactional( {
+                        subscriber_emails : [ "test@example.com" ],
+                        data              : { subject : "Hello" }
+                    } );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
             } );
 
         } );
