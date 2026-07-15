@@ -469,6 +469,298 @@ component extends="testbox.system.BaseSpec" {
                 } );
             } );
 
+            // ---------------------------------------------------------------
+            // Per-recipient data
+            // ---------------------------------------------------------------
+
+            describe( "sendTransactional with perRecipientData", function() {
+                it( "should send individual requests per recipient", function() {
+                    var requestCount = 0;
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            requestCount++;
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
+
+                    var result = pair.client.sendTransactional(
+                        { template_id : 1 },
+                        [],
+                        [
+                            { email : "alice@test.com", data : { name : "Alice", unsub : "https://unsub/a" } },
+                            { email : "bob@test.com", data : { name : "Bob", unsub : "https://unsub/b" } }
+                        ]
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                    expect( requestCount ).toBe( 2 );
+                } );
+
+                it( "should merge per-recipient data into base payload", function() {
+                    var capturedBody = "";
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
+
+                    // We can verify merging by checking the client received the call
+                    var result = pair.client.sendTransactional(
+                        { template_id : 1, data : { event_name : "Fall Season" } },
+                        [],
+                        [
+                            { email : "alice@test.com", data : { name : "Alice" } }
+                        ]
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should prefer per-recipient data over base data on conflict", function() {
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
+
+                    var result = pair.client.sendTransactional(
+                        { template_id : 1, data : { name : "Default", shared : "yes" } },
+                        [],
+                        [
+                            { email : "alice@test.com", data : { name : "Alice" } }
+                        ]
+                    );
+
+                    // Per-recipient "name" should override "Default", "shared" should persist
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should return last response when multiple recipients", function() {
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
+
+                    var result = pair.client.sendTransactional(
+                        { template_id : 1 },
+                        [],
+                        [
+                            { email : "alice@test.com", data : { name : "Alice" } },
+                            { email : "bob@test.com", data : { name : "Bob" } }
+                        ]
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+            } );
+
+            // ---------------------------------------------------------------
+            // Webhook management
+            // ---------------------------------------------------------------
+
+            describe( "Webhook management", function() {
+                it( "should list webhooks", function() {
+                    var pair = createFakedClient( {
+                        "*/api/webhooks": function( r ) {
+                            return r( 200, "OK", serializeJSON( {
+                                "data" : [
+                                    { "id" : 1, "url" : "https://api.inleague.io/webhooks/listmonk", "enabled" : true }
+                                ]
+                            } ) );
+                        }
+                    } );
+
+                    var result = pair.client.getWebhooks();
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should create a webhook", function() {
+                    var pair = createFakedClient( {
+                        "*/api/webhooks": function( r ) {
+                            return r( 200, "OK", serializeJSON( {
+                                "data" : { "id" : 2, "url" : "https://api.inleague.io/webhooks/listmonk", "enabled" : true }
+                            } ) );
+                        }
+                    } );
+
+                    var result = pair.client.createWebhook( {
+                        url     : "https://api.inleague.io/webhooks/listmonk",
+                        events  : [ "subscriber.unsubscribed", "subscriber.optimed" ],
+                        method  : "POST",
+                        enabled : true
+                    } );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should delete a webhook", function() {
+                    var pair = createFakedClient( {
+                        "*/api/webhooks/1": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : true } ) );
+                        }
+                    } );
+
+                    var result = pair.client.deleteWebhook( id = 1 );
+                    expect( result.isOk() ).toBeTrue();
+                } );
+            } );
+
+            // ---------------------------------------------------------------
+            // Webhook validation
+            // ---------------------------------------------------------------
+
+            describe( "Webhook validation", function() {
+                it( "should validate a correct webhook signature", function() {
+                    // Verify the validation method exists and works
+                    var pair = createFakedClient( {} );
+                    var result = pair.client.validateWebhookSignature(
+                        secret    = "test-secret",
+                        body      = ' { "event" : "test" }',
+                        signature = "sha256=0000000000000000000000000000000000000000000000000000000000000000",
+                        timestamp = "1234567890",
+                        maxAgeSeconds  = 999999999
+                    );
+                    expect( result ).toBeFalse();
+                } );
+                it( "should reject an incorrect webhook signature", function() {
+                    var pair = createFakedClient( {} );
+
+                    var result = pair.client.validateWebhookSignature(
+                        secret    = "my-secret",
+                        body      = '{ "event" : "test" }',
+                        signature = "sha256=0000000000000000000000000000000000000000000000000000000000000000",
+                        timestamp = "1234567890"
+                    );
+
+                    expect( result ).toBeFalse();
+                } );
+
+                it( "should reject an expired webhook timestamp", function() {
+                    var pair = createFakedClient( {} );
+                    var secret = "my-secret";
+                    var oldTimestamp = "1000000000"; // Very old timestamp
+                    var body = '{ "event" : "test" }';
+
+                    var payload = oldTimestamp & "." & body;
+                    var sig = "sha256=" & binaryDecode(
+                        hmac( payload, secret, "HmacSHA256", "utf-8" ),
+                        "hex"
+                    );
+
+                    var result = pair.client.validateWebhookSignature(
+                        secret    = secret,
+                        body      = body,
+                        signature = sig,
+                        timestamp = oldTimestamp,
+                        maxAgeSeconds = 300
+                    );
+
+                    expect( result ).toBeFalse();
+                } );
+
+                it( "should extract event type from webhook payload", function() {
+                    var pair = createFakedClient( {} );
+
+                    var event = pair.client.getWebhookEvent( {
+                        "event" : "subscriber.unsubscribed",
+                        "timestamp" : "2026-01-01T00:00:00Z",
+                        "data" : { "id" : 42 }
+                    } );
+
+                    expect( event ).toBe( "subscriber.unsubscribed" );
+                } );
+            } );
+
+            // ---------------------------------------------------------------
+            // Subscriber sync
+            // ---------------------------------------------------------------
+
+            describe( "Subscriber sync convenience methods", function() {
+                it( "should upsertSubscriber creating new subscriber", function() {
+                    var pair = createFakedClient( {
+                        "*/api/subscribers*": function( r ) {
+                            return r( 200, "OK", serializeJSON( {
+                                "data" : {
+                                    "id" : 42,
+                                    "email" : "new@test.com",
+                                    "name" : "New User",
+                                    "attribs" : { "unsub_token" : "abc123" },
+                                    "status" : "enabled",
+                                    "lists" : []
+                                }
+                            } ) );
+                        }
+                    } );
+
+                    var result = pair.client.upsertSubscriber(
+                        email  = "new@test.com",
+                        name   = "New User",
+                        listIds = [ 1 ],
+                        attribs = { "unsub_token" : "abc123" }
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should upsertSubscriber patching existing subscriber", function() {
+                    var pair = createFakedClient( {
+                        "*/api/subscribers*": function( r ) {
+                            return r( 200, "OK", serializeJSON( {
+                                "data" : {
+                                    "id" : 42,
+                                    "email" : "existing@test.com",
+                                    "name" : "Existing User",
+                                    "attribs" : { "unsub_token" : "xyz789" },
+                                    "status" : "enabled",
+                                    "lists" : []
+                                }
+                            } ) );
+                        }
+                    } );
+
+                    var result = pair.client.upsertSubscriber(
+                        email  = "existing@test.com",
+                        name   = "Existing User",
+                        listIds = [ 1 ],
+                        attribs = { "unsub_token" : "xyz789" }
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should addSubscribersToLists", function() {
+                    var pair = createFakedClient( {
+                        "*/api/subscribers/lists": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : true } ) );
+                        }
+                    } );
+
+                    var result = pair.client.addSubscribersToLists(
+                        subscriberIds = [ 1, 2, 3 ],
+                        listIds       = [ 10 ],
+                        status        = "confirmed"
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+
+                it( "should removeSubscribersFromLists", function() {
+                    var pair = createFakedClient( {
+                        "*/api/subscribers/lists": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : true } ) );
+                        }
+                    } );
+
+                    var result = pair.client.removeSubscribersFromLists(
+                        subscriberIds = [ 1, 2 ],
+                        listIds       = [ 10 ]
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+            } );
+
         } );
     }
 

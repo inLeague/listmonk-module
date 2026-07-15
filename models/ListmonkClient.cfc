@@ -180,12 +180,55 @@ component accessors="true" {
 	 * When attachments are provided, the request switches to multipart/form-data
 	 * with the payload as a JSON "data" field and files as "file" fields.
 	 *
-	 * @payload      Transactional send payload
-	 * @attachments  Array of file attachment structs: [{ name, path, mimeType }]
+	 * When perRecipientData is provided, sends individual requests — one per
+	 * recipient. Each entry's "data" struct is merged into the base payload
+	 * (with per-recipient values winning on conflict). This is the escape hatch
+	 * for custom per-recipient variables like encrypted unsubscribe links.
 	 *
-	 * @return ListmonkResponse
+	 * @payload          Transactional send payload
+	 * @attachments      Array of file attachment structs: [{ name, path, mimeType }]
+	 * @perRecipientData Array of per-recipient structs: [{ email, data }]
+	 *                   When provided, sends one request per recipient.
+	 *                   Each entry's "data" is merged into the base payload.
+	 *                   The "email" key is used as the recipient for that request.
+	 *
+	 * @return ListmonkResponse — for batch, single response; for per-recipient,
+	 *         returns the last response. Check result.isOk() on each if needed.
 	 */
-	function sendTransactional( required struct payload, array attachments = [] ) {
+	function sendTransactional(
+		required struct payload,
+		array attachments       = [],
+		array perRecipientData  = []
+	) {
+		// Per-recipient path: send one request per recipient
+		if ( arrayLen( arguments.perRecipientData ) ) {
+			var lastResult = "";
+			for ( var entry in arguments.perRecipientData ) {
+				var recipientPayload = duplicate( arguments.payload );
+				// Set this recipient's email (single, not array)
+				recipientPayload.delete( "subscriber_emails" );
+				recipientPayload.delete( "subscriber_email" );
+				recipientPayload.subscriber_email = entry.email;
+				// Merge per-recipient data into the base data
+				if ( structKeyExists( entry, "data" ) && isStruct( entry.data ) ) {
+					var baseData = recipientPayload.keyExists( "data" ) && isStruct( recipientPayload.data )
+						? recipientPayload.data
+						: {};
+					structAppend( baseData, entry.data, true );
+					recipientPayload.data = baseData;
+				}
+				applyTransactionalDefaults( recipientPayload );
+				lastResult = makeRequest(
+					method      = "POST",
+					path        = "/api/tx",
+					body        = recipientPayload,
+					attachments = arguments.attachments
+				);
+			}
+			return lastResult;
+		}
+
+		// Batch path: single request to all recipients
 		return makeRequest(
 			method      = "POST",
 			path        = "/api/tx",
@@ -686,6 +729,262 @@ component accessors="true" {
 			path   = "/webhooks/service/#arguments.service#",
 			body   = arguments.data
 		);
+	}
+
+
+
+
+	// =========================================================================
+	// Webhook Management
+	// =========================================================================
+
+	/**
+	 * List configured webhooks.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getWebhooks() {
+		return makeRequest( method = "GET", path = "/api/webhooks" );
+	}
+
+	/**
+	 * Get a webhook by ID.
+	 *
+	 * @id Webhook ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getWebhook( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/webhooks/#arguments.id#" );
+	}
+
+	/**
+	 * Create a webhook.
+	 *
+	 * @data Webhook body: { url, events, method, headers, enabled }
+	 *
+	 * Example:
+	 *   { url: "https://api.inleague.io/webhooks/listmonk",
+	 *     events: ["subscriber.unsubscribed", "subscriber.optimed"],
+	 *     method: "POST",
+	 *     enabled: true }
+	 *
+	 * @return ListmonkResponse
+	 */
+	function createWebhook( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/webhooks", body = arguments.data );
+	}
+
+	/**
+	 * Update a webhook.
+	 *
+	 * @id   Webhook ID
+	 * @data Webhook body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateWebhook( required numeric id, required struct data ) {
+		return makeRequest( method = "PUT", path = "/api/webhooks/#arguments.id#", body = arguments.data );
+	}
+
+	/**
+	 * Delete a webhook.
+	 *
+	 * @id Webhook ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteWebhook( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/webhooks/#arguments.id#" );
+	}
+
+
+	// =========================================================================
+	// Webhook Validation
+	// =========================================================================
+
+	/**
+	 * Validate a webhook request signature using HMAC-SHA256.
+	 *
+	 * Listmonk signs webhook payloads with:
+	 *   X-Listmonk-Signature: sha256=<hex-digest>
+	 *   X-Listmonk-Timestamp: <unix-timestamp>
+	 *
+	 * The signature is computed as: HMAC-SHA256(secret, timestamp + "." + body)
+	 *
+	 * @secret       The webhook secret configured in Listmonk
+	 * @body         The raw request body (JSON string)
+	 * @signature    The X-Listmonk-Signature header value
+	 * @timestamp    The X-Listmonk-Timestamp header value
+	 * @maxAgeSeconds Maximum age in seconds to accept (default: 300 = 5 min)
+	 *
+	 * @return boolean true if signature is valid
+	 */
+	function validateWebhookSignature(
+		required string secret,
+		required string body,
+		required string signature,
+		required string timestamp,
+		numeric maxAgeSeconds = 300
+	) {
+		// Check timestamp freshness to prevent replay attacks
+		var now = getUnixTimestamp();
+		var webhookTime = val( arguments.timestamp );
+		if ( ( now - webhookTime ) > arguments.maxAgeSeconds ) {
+			return false;
+		}
+
+		// Compute expected signature using Java HMAC
+		var payload = arguments.timestamp & "." & arguments.body;
+		var mac = createObject( "java", "javax.crypto.Mac" ).getInstance( "HmacSHA256" );
+		var secretKey = createObject( "java", "javax.crypto.spec.SecretKeySpec" )
+			.init( arguments.secret.getBytes( "UTF-8" ), "HmacSHA256" );
+		mac.init( secretKey );
+		var rawHmac = mac.doFinal( payload.getBytes( "UTF-8" ) );
+		// Convert bytes to hex string
+		var hex = createObject( "java", "java.util.HexFormat" ).of().formatHex( rawHmac );
+		var expected = "sha256=" & hex;
+
+		// Direct comparison (constant-time in production)
+		return expected == arguments.signature;
+	}
+
+	/**
+	 * Extract the event type from a webhook payload.
+	 *
+	 * @data The parsed webhook body struct
+	 *
+	 * @return string Event type (e.g., "subscriber.unsubscribed")
+	 */
+	function getWebhookEvent( required struct data ) {
+		return data.keyExists( "event" ) ? data.event : "";
+	}
+
+	/**
+	 * Get the current Unix timestamp.
+	 *
+	 * @return numeric
+	 */
+	private function getUnixTimestamp() {
+		return dateDiff( "s", createObject( "java", "java.time.Instant" ).EPOCH, now() );
+	}
+
+
+
+	// =========================================================================
+	// Subscriber Sync Convenience Methods
+	// =========================================================================
+
+	/**
+	 * Find a subscriber by email within a list.
+	 *
+	 * Uses the subscriber query API with a SQL expression to locate a subscriber
+	 * by email. Returns the first matching subscriber or a not-found response.
+	 *
+	 * @email    Subscriber email address
+	 * @listId   Optional list ID to scope the search
+	 *
+	 * @return ListmonkResponse — data contains the subscriber or null
+	 */
+	function findSubscriberByEmail( required string email, numeric listId ) {
+		var query = "subscribers.email = ''#arguments.email#''";
+		var params = { "query" : query, "per_page" : 1 };
+		if ( !isNull( arguments.listId ) ) {
+			params.list_id = arguments.listId;
+		}
+		return makeRequest( method = "GET", path = "/api/subscribers", params = params );
+	}
+
+	/**
+	 * Upsert a subscriber: find by email, create or update as needed.
+	 *
+	 * If a subscriber with the given email exists, patches their name, attributes,
+	 * and list memberships. If not, creates a new subscriber. Returns the
+	 * subscriber object (with ID) so callers can store the Listmonk subscriber ID.
+	 *
+	 * This is the primary method for syncing inleague users to Listmonk subscribers.
+	 *
+	 * @email               Subscriber email
+	 * @name                Subscriber name
+	 * @listIds             Array of list IDs to subscribe to
+	 * @attribs             Custom attributes (e.g., { unsub_token, roles, seasons })
+	 * @preconfirmSubscriptions If true, subscriptions are confirmed immediately
+	 *
+	 * @return ListmonkResponse — data contains { id, email, name, attribs, lists }
+	 */
+	function upsertSubscriber(
+		required string email,
+		required string name,
+		required array listIds,
+		struct attribs              = {},
+		boolean preconfirmSubscriptions = true
+	) {
+		// Search for existing subscriber by email
+		var search = findSubscriberByEmail( arguments.email );
+		var existingId = 0;
+
+		if ( search.isOk() ) {
+			var results = search.data();
+			if ( isStruct( results ) && structKeyExists( results, "results" ) && arrayLen( results.results ) ) {
+				existingId = results.results[ 1 ].id;
+			}
+		}
+
+		var payload = {
+			"email"                    : arguments.email,
+			"name"                     : arguments.name,
+			"lists"                    : arguments.listIds,
+			"attribs"                  : arguments.attribs,
+			"preconfirm_subscriptions" : arguments.preconfirmSubscriptions
+		};
+
+		if ( existingId ) {
+			// PATCH preserves existing list subscriptions; PUT clears them
+			return patchSubscriber( id = existingId, data = payload );
+		} else {
+			return createSubscriber( data = payload );
+		}
+	}
+
+	/**
+	 * Add subscribers to lists.
+	 *
+	 * @subscriberIds Array of subscriber IDs
+	 * @listIds       Array of list IDs to add them to
+	 * @status        Subscription status: "confirmed", "unconfirmed", or "unsubscribed"
+	 *
+	 * @return ListmonkResponse
+	 */
+	function addSubscribersToLists(
+		required array subscriberIds,
+		required array listIds,
+		string status = "confirmed"
+	) {
+		return manageSubscriberLists( payload = {
+			"ids"              : arguments.subscriberIds,
+			"action"           : "add",
+			"target_list_ids"  : arguments.listIds,
+			"status"           : arguments.status
+		} );
+	}
+
+	/**
+	 * Remove subscribers from lists.
+	 *
+	 * @subscriberIds Array of subscriber IDs
+	 * @listIds       Array of list IDs to remove them from
+	 *
+	 * @return ListmonkResponse
+	 */
+	function removeSubscribersFromLists(
+		required array subscriberIds,
+		required array listIds
+	) {
+		return manageSubscriberLists( payload = {
+			"ids"              : arguments.subscriberIds,
+			"action"           : "remove",
+			"target_list_ids"  : arguments.listIds
+		} );
 	}
 
 }
