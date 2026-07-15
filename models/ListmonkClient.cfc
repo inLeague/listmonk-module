@@ -44,7 +44,8 @@ component accessors="true" {
 		if ( isNull( variables.moduleSettings ) ) {
 			variables.moduleSettings = {
 				"subscriberMode" : "external",
-				"contentType"    : "html"
+				"contentType"    : "html",
+				"defaultTemplateId" : 0
 			};
 		}
 		return this;
@@ -137,6 +138,9 @@ component accessors="true" {
 		if ( !structKeyExists( body, "content_type" ) && structKeyExists( variables.moduleSettings, "contentType" ) ) {
 			body.content_type = variables.moduleSettings.contentType;
 		}
+		if ( !structKeyExists( body, "template_id" ) && structKeyExists( variables.moduleSettings, "defaultTemplateId" ) && variables.moduleSettings.defaultTemplateId > 0 ) {
+			body.template_id = variables.moduleSettings.defaultTemplateId;
+		}
 		return body;
 	}
 
@@ -156,8 +160,8 @@ component accessors="true" {
 	/**
 	 * Send a transactional email.
 	 *
-	 * Applies moduleSettings.subscriberMode and contentType when those keys
-	 * are not present on the payload.
+	 * Applies moduleSettings.subscriberMode, contentType, and defaultTemplateId
+	 * when those keys are not present on the payload.
 	 *
 	 * @payload Transactional send payload
 	 *
