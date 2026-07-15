@@ -12,14 +12,22 @@
 component accessors="true" {
 
 	/**
-	 * Pre-configured HyperBuilder for Listmonk requests
+	 * Pre-configured HyperBuilder for Listmonk requests.
+	 * Not WireBox-injected: required=false still fails hard when the alias is unmapped
+	 * (interceptor boot before module mappings). Lazily built in getHyper() from moduleSettings,
+	 * or set via init()/setHyper() / optional DI mapping in the host WireBox binder.
 	 */
-	property name="hyperBuilder" inject="ListmonkHyperClient@listmonk" required="false";
+	property name="hyperBuilder";
 
 	/**
 	 * Module settings (baseUrl, apiToken, subscriberMode, contentType, ...)
 	 */
 	property name="moduleSettings" inject="coldbox:moduleSettings:listmonk" required="false";
+
+	/**
+	 * WireBox (optional) — used to autowire a lazily created HyperBuilder
+	 */
+	property name="wirebox" inject="wirebox" required="false";
 
 	/**
 	 * LogBox logger
@@ -53,17 +61,36 @@ component accessors="true" {
 
 	/**
 	 * Get the underlying HyperBuilder instance.
+	 * Lazily constructs one from moduleSettings when the named WireBox client is unavailable.
 	 *
 	 * @return HyperBuilder
-	 * @throws ListmonkException - When no HyperBuilder has been configured
 	 */
 	function getHyper() {
-		if ( isNull( variables.hyperBuilder ) ) {
-			throw(
-				type    = "ListmonkException",
-				message = "Listmonk HyperBuilder is not configured. Inject ListmonkHyperClient@listmonk or call setHyper()."
-			);
+		if ( !isNull( variables.hyperBuilder ) ) {
+			return variables.hyperBuilder;
 		}
+
+		var settings = isNull( variables.moduleSettings ) ? {} : variables.moduleSettings;
+		variables.hyperBuilder = new hyper.models.HyperBuilder(
+			baseUrl    = settings.baseUrl ?: "",
+			timeout    = settings.timeout ?: 30,
+			bodyFormat = "json",
+			headers    = {
+				"Authorization" : "Token #( settings.apiToken ?: '' )#",
+				"Content-Type"  : "application/json",
+				"Accept"        : "application/json"
+			}
+		);
+
+		if ( !isNull( variables.wirebox ) ) {
+			try {
+				variables.wirebox.autowire( variables.hyperBuilder );
+			}
+			catch ( any e ) {
+				// HyperBuilder works without interceptor/async wiring for Listmonk API calls
+			}
+		}
+
 		return variables.hyperBuilder;
 	}
 

@@ -32,17 +32,18 @@ component {
 			"contentType"    : "html",
 			"defaultTemplateId" : 0
 		};
+
 	}
 
 	/**
-	 * Called after WireBox aspects are loaded.
-	 * Registers a dedicated Hyper client for Listmonk (separate from HyperBuilder@hyper).
-	 *
+	 * Register Hyper client after module settings (including host overrides) are merged.
+	 * Use onLoad + forceMap (not afterAspectsLoad + map): host apps may construct consumers
+	 * (or pre-map this alias) before afterAspectsLoad runs; forceMap refreshes tokens/settings.
 	 * @see https://hyper.ortusbooks.com/customizing-hyper/hyper-clients
 	 */
-	function afterAspectsLoad() {
+	function onLoad() {
 		binder
-			.map( "ListmonkHyperClient@listmonk" )
+			.forceMap( "ListmonkHyperClient@listmonk" )
 			.to( "hyper.models.HyperBuilder" )
 			.asSingleton()
 			.initWith(
