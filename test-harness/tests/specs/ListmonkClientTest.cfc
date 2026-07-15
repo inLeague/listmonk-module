@@ -384,6 +384,91 @@ component extends="testbox.system.BaseSpec" {
                 } );
             } );
 
+            // ---------------------------------------------------------------
+            // Attachments
+            // ---------------------------------------------------------------
+
+            describe( "sendTransactional with attachments", function() {
+                it( "should send transactional email with file attachments", function() {
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
+
+                    // Create a temp file for the attachment test
+                    var tmpFile = getTempFile() & ".txt";
+                    fileWrite( tmpFile, "test attachment content" );
+
+                    var result = pair.client.sendTransactional(
+                        {
+                            subscriber_emails : [ "test@example.com" ],
+                            template_id       : 1,
+                            data              : { subject : "Hello" }
+                        },
+                        [
+                            { name : "file", path : tmpFile, mimeType : "text/plain" }
+                        ]
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+
+                    // Clean up
+                    if ( fileExists( tmpFile ) ) {
+                        fileDelete( tmpFile );
+                    }
+                } );
+
+                it( "should send with multiple attachments", function() {
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
+
+                    var tmpFile1 = getTempFile() & ".txt";
+                    var tmpFile2 = getTempFile() & ".pdf";
+                    fileWrite( tmpFile1, "attachment 1" );
+                    fileWrite( tmpFile2, "attachment 2" );
+
+                    var result = pair.client.sendTransactional(
+                        {
+                            subscriber_emails : [ "test@example.com" ],
+                            template_id       : 1,
+                            data              : { subject : "Hello" }
+                        },
+                        [
+                            { name : "file", path : tmpFile1, mimeType : "text/plain" },
+                            { name : "file", path : tmpFile2, mimeType : "application/pdf" }
+                        ]
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+
+                    if ( fileExists( tmpFile1 ) ) { fileDelete( tmpFile1 ); }
+                    if ( fileExists( tmpFile2 ) ) { fileDelete( tmpFile2 ); }
+                } );
+
+                it( "should fall back to JSON when attachments array is empty", function() {
+                    var pair = createFakedClient( {
+                        "*/api/tx": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : "success" } ) );
+                        }
+                    } );
+
+                    var result = pair.client.sendTransactional(
+                        {
+                            subscriber_emails : [ "test@example.com" ],
+                            template_id       : 1,
+                            data              : { subject : "Hello" }
+                        },
+                        []
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                } );
+            } );
+
         } );
     }
 
