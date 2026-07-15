@@ -4,6 +4,9 @@
 
 ### Changed
 
+- Register `ListmonkHyperClient@listmonk` in **`onLoad()`** with **`forceMap`** (replaces `afterAspectsLoad` + `map`) so host boot/interceptor order cannot leave the alias unmapped
+- `ListmonkClient` no longer WireBox-injects `ListmonkHyperClient@listmonk`; `getHyper()` lazily builds a HyperBuilder from `moduleSettings` (or uses `init` / `setHyper`) — `required=false` inject still threw when the alias was missing
+- Default `subscriberMode` is **`fallback`**
 - Module WireBox / settings namespace is now `listmonk` (`ListmonkClient@listmonk`, `moduleSettings.listmonk`)
 - Replaced `writeLog` diagnostics with LogBox (`logbox:logger:{this}`)
 - Hyper client mapped as `ListmonkHyperClient@listmonk` via WireBox `initWith` (no mutation of `HyperBuilder@hyper`)

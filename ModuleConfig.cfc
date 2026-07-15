@@ -6,6 +6,7 @@
  */
 component {
 
+
 	// Module Properties
 	this.title          = "Listmonk";
 	this.author         = "inLeague LLC";
@@ -18,10 +19,16 @@ component {
 	this.autoMapModels  = true;
 
 	/**
-	 * Configure module settings.
+	 * Configure module settings and WireBox mappings.
 	 *
 	 * Settings can be overridden in the host app via:
 	 *   moduleSettings = { listmonk = { baseUrl: "...", apiToken: "..." } }
+	 *
+	 * WireBox mapping uses standard `binder.map()` (not `forceMap()`).
+	 * `map()` already overwrites existing mappings. This matches the
+	 * pattern used by other inleague modules (vendorIntegration, etc.).
+	 *
+	 * @see https://hyper.ortusbooks.com/customizing-hyper/hyper-clients
 	 */
 	function configure() {
 		settings = {
@@ -32,15 +39,8 @@ component {
 			"contentType"    : "html",
 			"defaultTemplateId" : 0
 		};
-	}
 
-	/**
-	 * Called after WireBox aspects are loaded.
-	 * Registers a dedicated Hyper client for Listmonk (separate from HyperBuilder@hyper).
-	 *
-	 * @see https://hyper.ortusbooks.com/customizing-hyper/hyper-clients
-	 */
-	function afterAspectsLoad() {
+		// Register a dedicated Hyper client for Listmonk
 		binder
 			.map( "ListmonkHyperClient@listmonk" )
 			.to( "hyper.models.HyperBuilder" )

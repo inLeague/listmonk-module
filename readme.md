@@ -21,11 +21,12 @@ In your ColdBox `config/ColdBox.cfc`, add the module settings:
 ```cfscript
 moduleSettings = {
 	listmonk = {
-		baseUrl        : "https://listmonk.example.com",
-		apiToken       : "your-api-token-here",
-		timeout        : 30,
-		subscriberMode : "external",
-		contentType    : "html"
+		baseUrl             : "https://listmonk.example.com",
+		apiToken            : "your-api-token-here",
+		timeout             : 30,
+		subscriberMode      : "fallback",
+		contentType         : "html",
+		defaultTemplateId   : 0
 	}
 };
 ```
@@ -37,8 +38,11 @@ moduleSettings = {
 | `baseUrl` | `http://localhost:9002` | Listmonk server URL |
 | `apiToken` | `""` | API authentication token (Settings > Security in Listmonk admin) |
 | `timeout` | `30` | HTTP request timeout in seconds |
-| `subscriberMode` | `"external"` | Default subscriber mode for transactional sends (`external`, `default`, `fallback`) when not set on the payload |
+| `subscriberMode` | `"fallback"` | Default subscriber mode for transactional sends (`external`, `default`, `fallback`) when not set on the payload |
 | `contentType` | `"html"` | Default content type for transactional sends (`html` or `plain`) when not set on the payload |
+| `defaultTemplateId` | `0` | Applied as `template_id` on transactional sends when omitted (`0` means do not apply) |
+
+Hosts that construct singletons/interceptors before modules finish activating should resolve `ListmonkClient@listmonk` **lazily** (not at construction). Optionally map `ListmonkHyperClient@listmonk` early; the module `forceMap`s it again in `onLoad`. See [AGENTS.md](AGENTS.md).
 
 ## Usage
 
