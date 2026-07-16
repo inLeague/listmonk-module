@@ -759,6 +759,55 @@ component extends="testbox.system.BaseSpec" {
 
                     expect( result.isOk() ).toBeTrue();
                 } );
+
+                it( "should extractIdFromData from flat and nested payloads", function() {
+                    var pair = createFakedClient( {} );
+                    expect( pair.client.extractIdFromData( { "id" : 42 } ) ).toBe( 42 );
+                    expect( pair.client.extractIdFromData( { "data" : { "id" : 7 } } ) ).toBe( 7 );
+                    expect( pair.client.extractIdFromData( {} ) ).toBe( 0 );
+                } );
+
+                it( "should ensureSubscriberOnLists via upsert when no existing id", function() {
+                    var pair = createFakedClient( {
+                        "*/api/subscribers*": function( r ) {
+                            return r( 200, "OK", serializeJSON( {
+                                "data" : {
+                                    "id" : 55,
+                                    "email" : "new@test.com",
+                                    "name" : "New User",
+                                    "lists" : []
+                                }
+                            } ) );
+                        }
+                    } );
+
+                    var result = pair.client.ensureSubscriberOnLists(
+                        email  = "new@test.com",
+                        name   = "New User",
+                        listIds = [ 1 ]
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                    expect( pair.client.extractIdFromData( result.data() ) ).toBe( 55 );
+                } );
+
+                it( "should ensureSubscriberOnLists via addSubscribersToLists when id known", function() {
+                    var pair = createFakedClient( {
+                        "*/api/subscribers/lists": function( r ) {
+                            return r( 200, "OK", serializeJSON( { "data" : true } ) );
+                        }
+                    } );
+
+                    var result = pair.client.ensureSubscriberOnLists(
+                        email                = "existing@test.com",
+                        name                 = "Existing",
+                        listIds              = [ 10 ],
+                        existingSubscriberId = 99
+                    );
+
+                    expect( result.isOk() ).toBeTrue();
+                    expect( pair.client.extractIdFromData( result.data() ) ).toBe( 99 );
+                } );
             } );
 
         } );

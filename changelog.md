@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- `ListmonkClient.extractIdFromData()` — parse numeric entity id from API payloads
+- `ListmonkClient.ensureSubscriberOnLists()` — preferred multi-list sync helper (add by known id, else upsert)
+- `ListmonkResponse.hydrate()` — build an ok response without a Hyper call
+
 ### Changed
 
 - Register `ListmonkHyperClient@listmonk` in **`onLoad()`** with **`forceMap`** (replaces `afterAspectsLoad` + `map`) so host boot/interceptor order cannot leave the alias unmapped

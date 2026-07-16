@@ -20,11 +20,15 @@ component {
 	/**
 	 * Initialize the response wrapper.
 	 *
-	 * @rawResponse The HyperResponse object from the HTTP call
+	 * @rawResponse The HyperResponse object from the HTTP call (omit when using hydrate())
 	 *
 	 * @return ListmonkResponse
 	 */
-	function init( required rawResponse ) {
+	function init( rawResponse ) {
+		if ( isNull( arguments.rawResponse ) || ( isSimpleValue( arguments.rawResponse ) && !len( arguments.rawResponse ) ) ) {
+			return this;
+		}
+
 		variables._raw    = arguments.rawResponse;
 		variables._status = arguments.rawResponse.getStatusCode() ?: 0;
 
@@ -106,6 +110,28 @@ component {
 	 */
 	function raw() {
 		return variables._raw;
+	}
+
+	/**
+	 * Build a successful response without an underlying Hyper call.
+	 * Used by client helpers that compose multiple API calls.
+	 *
+	 * @data    Response payload (exposed via data())
+	 * @status  HTTP-ish status code (default 200)
+	 * @message Optional message
+	 *
+	 * @return ListmonkResponse
+	 */
+	function hydrate(
+		required any data,
+		numeric status  = 200,
+		string message  = ""
+	) {
+		variables._raw     = "";
+		variables._data    = arguments.data;
+		variables._status  = arguments.status;
+		variables._message = arguments.message;
+		return this;
 	}
 
 }

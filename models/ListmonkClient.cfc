@@ -910,13 +910,34 @@ component accessors="true" {
 	}
 
 	/**
+	 * Extract a numeric Listmonk entity id from an API data payload.
+	 * Accepts `{ id }` or nested `{ data: { id } }`.
+	 *
+	 * @data Response data() payload (or similar struct)
+	 *
+	 * @return numeric id or 0
+	 */
+	function extractIdFromData( any data ) {
+		if ( isNull( arguments.data ) || !isStruct( arguments.data ) ) {
+			return 0;
+		}
+		if ( structKeyExists( arguments.data, "id" ) ) {
+			return val( arguments.data.id );
+		}
+		if ( structKeyExists( arguments.data, "data" ) && isStruct( arguments.data.data ) ) {
+			return val( arguments.data.data.id ?: 0 );
+		}
+		return 0;
+	}
+
+	/**
 	 * Upsert a subscriber: find by email, create or update as needed.
 	 *
 	 * If a subscriber with the given email exists, patches their name, attributes,
 	 * and list memberships. If not, creates a new subscriber. Returns the
 	 * subscriber object (with ID) so callers can store the Listmonk subscriber ID.
 	 *
-	 * This is the primary method for syncing inleague users to Listmonk subscribers.
+	 * Prefer ensureSubscriberOnLists() when the caller may already know the subscriber ID.
 	 *
 	 * @email               Subscriber email
 	 * @name                Subscriber name
@@ -958,6 +979,56 @@ component accessors="true" {
 		} else {
 			return createSubscriber( data = payload );
 		}
+	}
+
+	/**
+	 * Ensure an email is a Listmonk subscriber on the given lists.
+	 *
+	 * Preferred multi-list sync helper for host apps:
+	 * - If existingSubscriberId is known, add that subscriber to listIds (1 HTTP).
+	 * - Otherwise upsert by email (find + create/PATCH; PATCH preserves other lists).
+	 *
+	 * On the existing-id path, returns a hydrated ok response whose data() includes `{ id }`
+	 * so callers can always use extractIdFromData().
+	 *
+	 * @email                 Subscriber email
+	 * @name                  Subscriber name
+	 * @listIds               Array of list IDs to ensure membership on
+	 * @attribs               Custom attributes (used on upsert path)
+	 * @existingSubscriberId  Known Listmonk subscriber id (0 = look up / create)
+	 * @preconfirmSubscriptions If true, new subscriptions are confirmed immediately
+	 *
+	 * @return ListmonkResponse
+	 */
+	function ensureSubscriberOnLists(
+		required string email,
+		required string name,
+		required array listIds,
+		struct attribs                 = {},
+		numeric existingSubscriberId   = 0,
+		boolean preconfirmSubscriptions = true
+	) {
+		if ( val( arguments.existingSubscriberId ) > 0 ) {
+			var addResult = addSubscribersToLists(
+				subscriberIds = [ val( arguments.existingSubscriberId ) ],
+				listIds       = arguments.listIds,
+				status        = "confirmed"
+			);
+			if ( !addResult.isOk() ) {
+				return addResult;
+			}
+			return new listmonk.models.ListmonkResponse().hydrate(
+				data = { "id" : val( arguments.existingSubscriberId ) }
+			);
+		}
+
+		return upsertSubscriber(
+			email                   = arguments.email,
+			name                    = arguments.name,
+			listIds                 = arguments.listIds,
+			attribs                 = arguments.attribs,
+			preconfirmSubscriptions = arguments.preconfirmSubscriptions
+		);
 	}
 
 	/**
