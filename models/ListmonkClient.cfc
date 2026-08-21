@@ -55,8 +55,7 @@ component accessors="true" {
 	}
 
 	/**
-	 * Get the underlying HyperBuilder instance.
-	 * Lazily constructs one from moduleSettings when the named WireBox client is unavailable.
+	 * Get or create this instance's "hyper" instance.
 	 *
 	 * @return HyperBuilder
 	 */
@@ -65,14 +64,17 @@ component accessors="true" {
 			return variables.hyperBuilder;
 		}
 
+		// TODO: could we throw if we are missing some module settings here? or do we need to support missing values?
+		// If we need to support missing values, epxlain 
 		var settings = isNull( variables.moduleSettings ) ? {} : variables.moduleSettings;
 
+		// TODO: racey - this assignment is not thread safe
 		variables.hyperBuilder = new hyper.models.HyperBuilder(
 			baseUrl    = settings.baseUrl ?: "",
 			timeout    = settings.timeout ?: 30,
 			bodyFormat = "json",
 			headers    = {
-				"Authorization" : "Token #( settings.apiToken ?: '' )#",
+				"Authorization" : "token #( settings.apiUser ?: '' )#:#( settings.apiToken ?: '' )#",
 				"Content-Type"  : "application/json",
 				"Accept"        : "application/json"
 			}
