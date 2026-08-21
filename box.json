@@ -46,7 +46,7 @@
 		"coldbox": "coldbox/"
 	},
 	"testbox": {
-		"runner": "/tests/runner.cfm",
+		"runner": "/runner.cfm",
 		"directory": "tests.specs",
 		"recurse": true,
 		"reporter": "json",

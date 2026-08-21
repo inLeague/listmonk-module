@@ -11,12 +11,10 @@ component extends="tests.ColdboxBase" {
 
 	function run() {
 		describe( "test runner canary", function() {
-			it( "fails on purpose so we can see a failure in CLI and browser", function() {
+			it( "foo", function() {
 				var listMonkClient = wirebox.getInstance( "ListMonkClient@listmonk" );
 
-				listMonkClient.getLists().getOkOrFail();
-
-				fail( "Intentional canary failure. Once you see this in tests/results and in the browser, delete AlwaysFailingSpec.cfc." );
+				expect( listMonkClient.getLists().getOkOrFail().results ).toBeArray()
 			} );
 		} );
 	}

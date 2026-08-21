@@ -51,8 +51,11 @@ jobs:
           path: tests/results/
 
       - name: Stop BoxLang server
-        if: ${{ always() && !env.ACT }}
-        run: box server stop serverConfigFile=server-boxlang.json || true
+        run: |
+          box server stop name=listmonk-boxlang
+          if [ -n "${ACT:-}" ]; then
+            box server forget name=listmonk-boxlang --force
+          fi
 
       - name: Stop Listmonk
         if: always()

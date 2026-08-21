@@ -4,6 +4,7 @@
         "cfengine":"boxlang@1"
     },
     "web":{
+        "webroot":"tests",
         "http":{
             "port":60299
         },

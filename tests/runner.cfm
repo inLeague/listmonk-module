@@ -1,7 +1,7 @@
 <cfsetting showDebugOutput="false">
 <cfsetting requesttimeout="999999">
 <!---
-	Browser: http://127.0.0.1:60299/tests/runner.cfm
+	Browser: http://127.0.0.1:60299/runner.cfm
 	Default reporter is HTML (`simple`) so writeDump() / debug() show on the page.
 
 	CLI (`box testbox run`) passes reporter=json and writes tests/results/.

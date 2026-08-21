@@ -36,6 +36,6 @@ Listmonk (`tests/docker/`) starts from `run-tests.sh` (`up`, not `--build`). Ove
 
 CI (`.github/workflows/tests.yml`) runs on `ubuntu-latest` so the job can use Docker. Do not wrap the job in the CommandBox container image — that blocks `docker compose`. Local `act -j tests` uses `-P ubuntu-latest=-self-hosted` (`.actrc`). The workflow always `docker compose down -v` at the end (GitHub and act).
 
-Browser (HTML reporter, `writeDump()` works): start `box run-script start:boxlang`, open http://127.0.0.1:60299/tests/runner.cfm
+Browser (HTML reporter, `writeDump()` works): start `box run-script start:boxlang`, open http://127.0.0.1:60299/runner.cfm
 
 When changing `getHyper()`, cover lazy construction from `moduleSettings`.
