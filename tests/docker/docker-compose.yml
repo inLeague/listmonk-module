@@ -33,7 +33,9 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./creds:/listmonk/creds
+      # Outside /listmonk so the image entrypoint's chown -R does not
+      # rewrite host-owned files such as .git-keep.
+      - ./creds:/creds
     environment:
       LISTMONK_app__address: 0.0.0.0:9000
       LISTMONK_db__user: *db-user
@@ -47,6 +49,7 @@ services:
       LISTMONK_db__max_lifetime: 300s
       TZ: Etc/UTC
       LISTMONK_PORT: ${LISTMONK_PORT:-9002}
+      LISTMONK_CREDS_DIR: /creds
       LISTMONK_ADMIN_USER: ${LISTMONK_ADMIN_USER:-admin}
       LISTMONK_ADMIN_PASSWORD: ${LISTMONK_ADMIN_PASSWORD:-listmonktest}
       LISTMONK_ADMIN_API_USER: ${LISTMONK_ADMIN_API_USER:-listmonk-api}

@@ -21,3 +21,6 @@ settings.xml
 testbox/
 coldbox/
 tests/results/
+tests/docker/creds/*
+!tests/docker/creds/.git-keep
+
