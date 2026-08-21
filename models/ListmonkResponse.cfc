@@ -41,15 +41,20 @@ component {
 
 		// Listmonk wraps successful responses in { "data": ... }
 		// and errors in { "message": "..." }
-		if ( isStruct( body ) ) {
-			if ( structKeyExists( body, "data" ) ) {
-				variables._data = body.data;
+		if ( _status >= 500 ) {
+			variables._message = "#variables._status# / #variables._raw.getStatusText()# (url='#rawResponse.getRequest().getFullUrl()#')"
+		}
+		else {
+			if ( isStruct( body ) ) {
+				if ( structKeyExists( body, "data" ) ) {
+					variables._data = body.data;
+				}
+				if ( structKeyExists( body, "message" ) ) {
+					variables._message = body.message;
+				}
+			} else {
+				variables._data = body;
 			}
-			if ( structKeyExists( body, "message" ) ) {
-				variables._message = body.message;
-			}
-		} else {
-			variables._data = body;
 		}
 
 		return this;
