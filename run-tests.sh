@@ -37,7 +37,8 @@ echo "==> Starting BoxLang server"
 if [[ "${ACT:-}" == "true" ]]; then
 	echo "act: using host BoxLang server at http://127.0.0.1:60299"
 else
-	box server restart serverConfigFile=server-boxlang.json
+    # on CI start is the right move; locally, we might want restart? or even "just reuse the one that's running"
+	box server start serverConfigFile=server-boxlang.json
 fi
 
 set +e
