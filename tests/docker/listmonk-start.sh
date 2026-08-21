@@ -32,10 +32,11 @@ cat "$INSTALL_LOG"
 TOKEN=$(sed -n 's/.*LISTMONK_ADMIN_API_TOKEN="\([^"]*\)".*/\1/p' "$INSTALL_LOG" | tail -n 1)
 if [ -n "$TOKEN" ]; then
 	json_str() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
-	printf '{"LISTMONK_URL":"%s","LISTMONK_API_USER":"%s","LISTMONK_API_TOKEN":"%s"}\n' \
+	printf '{"LISTMONK_URL":"%s","LISTMONK_API_USER":"%s","LISTMONK_API_TOKEN":"%s","CREATED_ON":"%s"}\n' \
 		"$(json_str "http://127.0.0.1:${LISTMONK_PORT:-9002}")" \
 		"$(json_str "${LISTMONK_ADMIN_API_USER}")" \
 		"$(json_str "$TOKEN")" \
+		"$(json_str "$(date -u +%Y-%m-%dT%H:%M:%SZ)")" \
 		> "$CREDS_DIR/api.json.env"
 fi
 
