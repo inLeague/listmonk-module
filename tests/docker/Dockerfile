@@ -9,4 +9,4 @@ RUN chmod +x /usr/local/bin/listmonk-start.sh
 CMD ["/usr/local/bin/listmonk-start.sh"]
 
 HEALTHCHECK --interval=5s --timeout=3s --start-period=25s --retries=12 \
-	CMD curl -fsS http://127.0.0.1:9000/api/health || exit 1
+	CMD curl -fsS http://127.0.0.1:9000/health || exit 1

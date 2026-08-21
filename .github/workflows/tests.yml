@@ -7,27 +7,53 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
-    container:
-      image: ortussolutions/commandbox:jdk25
-      # Image entrypoint starts a servlet server; clear it so we can use the CLI
-      options: --entrypoint ""
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify Java
-        run: java -version
+      # act -self-hosted reuses the local `box` binary; GitHub-hosted runners need this.
+      - name: Setup CommandBox
+        if: ${{ !env.ACT }}
+        uses: Ortus-Solutions/setup-commandbox@v2.0.1
 
-      - name: Install test-harness dependencies
-        working-directory: test-harness
+      # TODO: cacheable? based on hash of box.json or something?
+      - name: Install ForgeBox dependencies
         run: box install
 
-      - name: Start BoxLang server
-        run: box server start serverConfigFile=server-boxlang.json
+      # use docker/setup-buildx-action@v3BuildKit so the next step can use cache-from/to type=gha.
+      # The goal is to no rebuild the listmonk images everytime, they should not change too frequently.
+      - name: Set up Docker Buildx
+        if: ${{ !env.ACT }}
+        uses: docker/setup-buildx-action@v3
 
-      - name: Run TestBox
-        working-directory: test-harness
-        run: box testbox run runner=http://127.0.0.1:60299/tests/runner.cfm
+      - name: Build Listmonk image
+        if: ${{ !env.ACT }}
+        uses: docker/build-push-action@v6
+        with:
+          file: tests/docker/Dockerfile  # explicit target Dockerfile
+          context: tests/docker          # build context for the previously specified Dockerfile
+          load: true                     # load into this runner's docker so compose up can run it
+          tags: listmonk-tests-app       # must match compose `image:`; not pushed to a registry
+          cache-from: type=gha           # read BuildKit layers from this repo's Actions cache
+          cache-to: type=gha             # write them back (there is a mode arg here that auto-defaults to mode=min, meaning "cache the generated image's final layer only")
 
-      - name: Stop server
+      - name: Build Listmonk image
+        if: ${{ env.ACT }}
+        run: docker compose --project-directory tests/docker build
+
+      - name: Run tests
+        run: ./run-tests.sh
+
+      - name: Upload test results
+        if: ${{ always() && !env.ACT }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: tests/results/
+
+      - name: Stop BoxLang server
+        if: ${{ always() && !env.ACT }}
+        run: box server stop serverConfigFile=server-boxlang.json || true
+
+      - name: Stop Listmonk
         if: always()
-        run: box server stop serverConfigFile=server-boxlang.json
+        run: docker compose --project-directory tests/docker down -v --remove-orphans

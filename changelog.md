@@ -4,6 +4,8 @@
 
 ### Added
 
+- CI runs `./run-tests.sh` (Listmonk docker compose + TestBox); local `act -j tests` uses host Docker
+- GitHub Actions builds the Listmonk test image in its own step with Buildx `type=gha` layer cache
 - `ListmonkClient.extractIdFromData()` — parse numeric entity id from API payloads
 - `ListmonkClient.ensureSubscriberOnLists()` — preferred multi-list sync helper (add by known id, else upsert)
 - `ListmonkResponse.hydrate()` — build an ok response without a Hyper call

@@ -26,11 +26,15 @@ Host override via `moduleSettings.listmonk` (`baseUrl`, `apiToken`, `timeout`, `
 Top-level TestBox specs live in `tests/specs/` (not `test-harness`). The test app is a normal ColdBox app: `tests/modules/listmonk` is a symlink to this checkout, so WireBox aliases from `ModuleConfig` (`ListmonkClient@listmonk`, etc.) load by convention. Specs extending `tests.ColdboxBase` can `getInstance( "ListmonkClient@listmonk" )`.
 
 ```bash
-./run-tests.sh          # starts BoxLang if needed; writes tests/results/
-box run-script test     # same runner, assumes server already up
+./run-tests.sh          # docker compose up Listmonk + BoxLang; writes tests/results/
+docker compose --project-directory tests/docker build   # after Dockerfile / start-script changes
+box run-script test     # same TestBox runner, assumes server already up
+act -j tests            # GitHub Actions workflow on the host (see .actrc)
 ```
 
-Listmonk for integration tests (`tests/docker/`): `cp tests/docker/.env.example tests/docker/.env` if you need non-default port or creds, then `docker compose --project-directory tests/docker up -d`. Defaults: `http://localhost:9002`, dashboard user `admin` / `listmonktest`, API user `listmonk-api`. First install writes `tests/docker/creds/api.json.env` (`LISTMONK_URL`, `LISTMONK_API_USER`, `LISTMONK_API_TOKEN`). Recreate with `docker compose --project-directory tests/docker down -v` and remove `tests/docker/creds`.
+Listmonk (`tests/docker/`) starts from `run-tests.sh` (`up`, not `--build`). Override port/creds with `cp tests/docker/.env.example tests/docker/.env`. Defaults: `http://localhost:9002`, dashboard user `admin` / `listmonktest`, API user `listmonk-api`. First install writes `tests/docker/creds/api.json.env` (`LISTMONK_URL`, `LISTMONK_API_USER`, `LISTMONK_API_TOKEN`). Recreate with `docker compose --project-directory tests/docker down -v` and remove `tests/docker/creds`.
+
+CI (`.github/workflows/tests.yml`) runs on `ubuntu-latest` so the job can use Docker. Do not wrap the job in the CommandBox container image — that blocks `docker compose`. Local `act -j tests` uses `-P ubuntu-latest=-self-hosted` (`.actrc`). The workflow always `docker compose down -v` at the end (GitHub and act).
 
 Browser (HTML reporter, `writeDump()` works): start `box run-script start:boxlang`, open http://127.0.0.1:60299/tests/runner.cfm
 

@@ -14,8 +14,7 @@ component extends="tests.ColdboxBase" {
 			it( "fails on purpose so we can see a failure in CLI and browser", function() {
 				var listMonkClient = wirebox.getInstance( "ListMonkClient@listmonk" );
 
-				var v = listMonkClient.getLists();
-				writedump(v.getOkOrFail());
+				listMonkClient.getLists().getOkOrFail();
 
 				fail( "Intentional canary failure. Once you see this in tests/results and in the browser, delete AlwaysFailingSpec.cfc." );
 			} );

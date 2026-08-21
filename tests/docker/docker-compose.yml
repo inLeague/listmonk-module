@@ -19,6 +19,7 @@ x-db-credentials: &db-credentials
 
 services:
   app:
+    image: listmonk-tests-app
     build:
       context: .
       dockerfile: Dockerfile
