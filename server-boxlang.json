@@ -9,11 +9,11 @@
         },
         "rewrites":{
             "enable":true
-        },
-        "webroot":"test-harness"
+        }
     },
     "JVM":{
-        "heapSize":512
+        "heapSize":512,
+        "javaVersion":"openjdk25_jdk"
     },
     "openBrowser":false
 }

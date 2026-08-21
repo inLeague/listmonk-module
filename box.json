@@ -19,12 +19,18 @@
 	"dependencies": {
 		"hyper": "^8.0.0"
 	},
+	"devDependencies": {
+		"testbox": "^6.0.0",
+		"coldbox": "^8.0.0"
+	},
 	"boxlang": {
 		"minimumVersion": "1.0.0"
 	},
 	"ignore": [
 		"**/.*",
 		"test-harness",
+		"tests",
+		"coldbox",
 		"build"
 	],
 	"scripts": {
@@ -32,9 +38,19 @@
 		"format:watch": "cfformat watch models/,ModuleConfig.cfc,test-harness/tests/specs/,test-harness/config/,test-harness/Application.cfc ./.cfformat.json",
 		"format:check": "cfformat check models/,ModuleConfig.cfc,test-harness/tests/specs/,test-harness/config/,test-harness/Application.cfc ./.cfformat.json",
 		"start:boxlang": "server start serverConfigFile=server-boxlang.json",
-		"test": "cd test-harness && box testbox run"
+		"test": "testbox run outputFormats=json,simple,junit outputFile=tests/results/testbox"
 	},
 	"installPaths": {
-		"hyper": "modules/hyper/"
+		"hyper": "modules/hyper/",
+		"testbox": "testbox/",
+		"coldbox": "coldbox/"
+	},
+	"testbox": {
+		"runner": "/tests/runner.cfm",
+		"directory": "tests.specs",
+		"recurse": true,
+		"reporter": "json",
+		"verbose": true,
+		"watchDelay": 1000
 	}
 }

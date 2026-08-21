@@ -1,0 +1,73 @@
+# Local Listmonk for module tests.
+#
+#   cp .env.example .env   # optional; defaults match ModuleConfig (port 9002)
+#   docker compose up -d
+#
+# First install writes tests/docker/creds/api.json.env (URL, API user, token).
+# Admin/API users are created only on first install. To change them:
+#   docker compose down -v && rm -rf creds && docker compose up -d
+#
+# From the repo root:
+#   docker compose --project-directory tests/docker up -d
+
+name: listmonk-tests
+
+x-db-credentials: &db-credentials
+  POSTGRES_USER: &db-user listmonk
+  POSTGRES_PASSWORD: &db-password listmonk
+  POSTGRES_DB: &db-name listmonk
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        LISTMONK_VERSION: ${LISTMONK_VERSION:-v6.2.0}
+    restart: unless-stopped
+    ports:
+      - "${LISTMONK_PORT:-9002}:9000"
+    networks:
+      - listmonk
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./creds:/listmonk/creds
+    environment:
+      LISTMONK_app__address: 0.0.0.0:9000
+      LISTMONK_db__user: *db-user
+      LISTMONK_db__password: *db-password
+      LISTMONK_db__database: *db-name
+      LISTMONK_db__host: db
+      LISTMONK_db__port: 5432
+      LISTMONK_db__ssl_mode: disable
+      LISTMONK_db__max_open: 25
+      LISTMONK_db__max_idle: 25
+      LISTMONK_db__max_lifetime: 300s
+      TZ: Etc/UTC
+      LISTMONK_PORT: ${LISTMONK_PORT:-9002}
+      LISTMONK_ADMIN_USER: ${LISTMONK_ADMIN_USER:-admin}
+      LISTMONK_ADMIN_PASSWORD: ${LISTMONK_ADMIN_PASSWORD:-listmonktest}
+      LISTMONK_ADMIN_API_USER: ${LISTMONK_ADMIN_API_USER:-listmonk-api}
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    networks:
+      - listmonk
+    environment:
+      <<: *db-credentials
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U listmonk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - listmonk-data:/var/lib/postgresql/data
+
+networks:
+  listmonk:
+
+volumes:
+  listmonk-data:

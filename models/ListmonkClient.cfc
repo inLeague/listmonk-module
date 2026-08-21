@@ -4,7 +4,7 @@
  * Uses Hyper's verb methods (get, post, put, etc.) directly — each call
  * creates a fresh HyperRequest with the builder's defaults applied.
  *
- * In a ColdBox context, the HyperBuilder and module settings are injected via WireBox.
+ * In a ColdBox context, module settings are injected via WireBox.
  * In a non-ColdBox context, pass them via setHyper() / init().
  *
  * @author inLeague LLC
@@ -15,7 +15,7 @@ component accessors="true" {
 	 * Pre-configured HyperBuilder for Listmonk requests.
 	 * Not WireBox-injected: required=false still fails hard when the alias is unmapped
 	 * (interceptor boot before module mappings). Lazily built in getHyper() from moduleSettings,
-	 * or set via init()/setHyper() / optional DI mapping in the host WireBox binder.
+	 * or set via init()/setHyper().
 	 */
 	property name="hyperBuilder";
 
@@ -66,6 +66,7 @@ component accessors="true" {
 		}
 
 		var settings = isNull( variables.moduleSettings ) ? {} : variables.moduleSettings;
+
 		variables.hyperBuilder = new hyper.models.HyperBuilder(
 			baseUrl    = settings.baseUrl ?: "",
 			timeout    = settings.timeout ?: 30,

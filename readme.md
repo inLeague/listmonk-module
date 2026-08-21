@@ -42,7 +42,7 @@ moduleSettings = {
 | `contentType` | `"html"` | Default content type for transactional sends (`html` or `plain`) when not set on the payload |
 | `defaultTemplateId` | `0` | Applied as `template_id` on transactional sends when omitted (`0` means do not apply) |
 
-Hosts that construct singletons/interceptors before modules finish activating should resolve `ListmonkClient@listmonk` **lazily** (not at construction). Optionally map `ListmonkHyperClient@listmonk` early; the module `forceMap`s it again in `onLoad`. See [AGENTS.md](AGENTS.md).
+Hosts that construct singletons/interceptors before modules finish activating should resolve `ListmonkClient@listmonk` **lazily** (not at construction). See [AGENTS.md](AGENTS.md).
 
 ## Usage
 

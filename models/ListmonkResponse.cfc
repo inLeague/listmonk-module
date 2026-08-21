@@ -134,4 +134,12 @@ component {
 		return this;
 	}
 
+	function getOkOrFail() {
+		if ( this.isError() ) {
+			throw(type="ListmonkResponse.ErrorResponse", message=this.message(), extendedInfo=this);
+		}
+		else {
+			return this.data();
+		}
+	}
 }

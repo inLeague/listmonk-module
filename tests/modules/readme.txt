@@ -1,0 +1,1 @@
+We include a 'copy' of listmonk here (via a symlink to "project root") because we couldn't figure out how to otherwise make "coldbox module registration" in the test Application startup work. 
