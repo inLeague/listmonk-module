@@ -13,15 +13,6 @@ component extends="tests.ColdboxBase" {
 		variables.lm     = wirebox.getInstance( "ListmonkClient@listmonk" );
 		variables.suffix = lCase( left( replace( createUUID(), "-", "", "all" ), 12 ) );
 		variables.email  = "spec-#variables.suffix#@example.test";
-		variables.created = {
-			"lists"       : [],
-			"subscribers" : [],
-			"campaigns"   : [],
-			"templates"   : [],
-			"media"       : [],
-			"users"       : [],
-			"roles"       : []
-		};
 
 		var list = expectOk(
 			variables.lm.createList( {
@@ -33,7 +24,6 @@ component extends="tests.ColdboxBase" {
 			"createList fixture"
 		);
 		variables.listId = list.id;
-		arrayAppend( variables.created.lists, variables.listId );
 
 		var publicList = expectOk(
 			variables.lm.createList( {
@@ -46,7 +36,6 @@ component extends="tests.ColdboxBase" {
 		);
 		variables.publicListId   = publicList.id;
 		variables.publicListUuid = publicList.uuid ?: "";
-		arrayAppend( variables.created.lists, variables.publicListId );
 
 		var templates = expectOk( variables.lm.getTemplates(), "getTemplates fixture" );
 		if ( !isArray( templates ) ) {
@@ -74,7 +63,6 @@ component extends="tests.ColdboxBase" {
 			"createTemplate campaign fixture"
 		);
 		variables.specCampaignTemplateId = entityId( campaignTpl );
-		arrayAppend( variables.created.templates, variables.specCampaignTemplateId );
 		if ( !variables.campaignTemplateId ) {
 			variables.campaignTemplateId = variables.specCampaignTemplateId;
 		}
@@ -89,7 +77,6 @@ component extends="tests.ColdboxBase" {
 			"createTemplate tx fixture"
 		);
 		variables.specTxTemplateId = entityId( txTpl );
-		arrayAppend( variables.created.templates, variables.specTxTemplateId );
 		if ( !variables.txTemplateId ) {
 			variables.txTemplateId = variables.specTxTemplateId;
 		}
@@ -105,7 +92,6 @@ component extends="tests.ColdboxBase" {
 			"createSubscriber fixture"
 		);
 		variables.subscriberId = sub.id;
-		arrayAppend( variables.created.subscribers, variables.subscriberId );
 
 		var campaign = expectOk(
 			variables.lm.createCampaign( {
@@ -122,20 +108,6 @@ component extends="tests.ColdboxBase" {
 			"createCampaign fixture"
 		);
 		variables.campaignId = campaign.id;
-		arrayAppend( variables.created.campaigns, variables.campaignId );
-	}
-
-	function afterAll() {
-		if ( structKeyExists( variables, "created" ) && structKeyExists( variables, "lm" ) ) {
-			cleanupEach( variables.created.campaigns, "deleteCampaign" );
-			cleanupEach( variables.created.media, "deleteMedia" );
-			cleanupEach( variables.created.subscribers, "deleteSubscriber" );
-			cleanupEach( variables.created.templates, "deleteTemplate" );
-			cleanupEach( variables.created.users, "deleteUser" );
-			cleanupEach( variables.created.roles, "deleteRole" );
-			cleanupEach( variables.created.lists, "deleteList" );
-		}
-		super.afterAll();
 	}
 
 	function run() {
@@ -757,7 +729,6 @@ component extends="tests.ColdboxBase" {
 						} ),
 						"createCampaign for status"
 					);
-					arrayAppend( variables.created.campaigns, extra.id );
 					expect( extra.status ).toBe( "draft" );
 
 					var scheduled = variables.lm.updateCampaignStatus( extra.id, { "status" : "scheduled" } );
@@ -857,7 +828,6 @@ component extends="tests.ColdboxBase" {
 					expect( uploaded.status() ).toBe( 200, "uploadMedia HTTP #uploaded.status()# #uploaded.message()#" );
 					var id = entityId( uploaded.data() );
 					expect( id ).toBeGT( 0 );
-					arrayAppend( variables.created.media, id );
 
 					var got = variables.lm.getMediaById( id );
 					expect( got.status() ).toBe( 200 );
@@ -871,7 +841,6 @@ component extends="tests.ColdboxBase" {
 					var deleted = variables.lm.deleteMedia( id );
 					expect( deleted.status() ).toBe( 200 );
 					expect( deleted.data() ).toBeTrue();
-					arrayDelete( variables.created.media, id );
 
 					expectGone( variables.lm.getMediaById( id ), "Media" );
 				} );
@@ -949,7 +918,6 @@ component extends="tests.ColdboxBase" {
 					}
 					expect( found.email ?: "" ).toBe( importEmail );
 					expect( found.name ).toBe( "Import User" );
-					arrayAppend( variables.created.subscribers, val( found.id ) );
 				} );
 			} );
 
@@ -979,7 +947,6 @@ component extends="tests.ColdboxBase" {
 						"create orphan subscriber"
 					);
 					var id = val( extra.id );
-					arrayAppend( variables.created.subscribers, id );
 					expect( variables.lm.getSubscriber( id ).status() ).toBe( 200 );
 
 					var gc = variables.lm.gcSubscribers( "orphan" );
@@ -1011,7 +978,6 @@ component extends="tests.ColdboxBase" {
 						} ),
 						"createList double optin"
 					);
-					arrayAppend( variables.created.lists, dbl.id );
 					var extra = createTempSubscriber( "unconf" );
 
 					var added = variables.lm.manageSubscriberLists( {
@@ -1069,7 +1035,6 @@ component extends="tests.ColdboxBase" {
 					expect( found.email ?: "" ).toBe( email );
 					expect( found.name ).toBe( "Public Spec" );
 					expect( hasId( subscriberListIds( found ), variables.publicListId ) ).toBeTrue();
-					arrayAppend( variables.created.subscribers, val( found.id ) );
 				} );
 
 				it( "GET /api/public/captcha/altcha", function() {
@@ -1107,7 +1072,6 @@ component extends="tests.ColdboxBase" {
 					} );
 					expect( created.status() ).toBe( 200, "createUser HTTP #created.status()# #created.message()#" );
 					var id = entityId( created.data() );
-					arrayAppend( variables.created.users, id );
 
 					var got = variables.lm.getUser( id );
 					expect( got.status() ).toBe( 200 );
@@ -1137,7 +1101,6 @@ component extends="tests.ColdboxBase" {
 					var deleted = variables.lm.deleteUser( id );
 					expect( deleted.status() ).toBe( 200 );
 					expect( deleted.data() ).toBeTrue();
-					arrayDelete( variables.created.users, id );
 
 					expectGone( variables.lm.getUser( id ), "User" );
 				} );
@@ -1158,7 +1121,6 @@ component extends="tests.ColdboxBase" {
 					} );
 					expect( created.status() ).toBe( 200, "createUserRole HTTP #created.status()# #created.message()#" );
 					var id = entityId( created.data() );
-					arrayAppend( variables.created.roles, id );
 
 					var listed = expectOk( variables.lm.getUserRoles(), "getUserRoles after create" );
 					expect( hasId( idsOf( collectionResults( listed ) ), id ) ).toBeTrue();
@@ -1184,7 +1146,6 @@ component extends="tests.ColdboxBase" {
 					var deleted = variables.lm.deleteRole( id );
 					expect( deleted.status() ).toBe( 200 );
 					expect( deleted.data() ).toBeTrue();
-					arrayDelete( variables.created.roles, id );
 
 					var remaining = expectOk( variables.lm.getUserRoles(), "getUserRoles after delete" );
 					expect( hasId( idsOf( collectionResults( remaining ) ), id ) ).toBeFalse();
@@ -1327,7 +1288,6 @@ component extends="tests.ColdboxBase" {
 			"createTempSubscriber #arguments.slug#"
 		);
 		var id = val( data.id );
-		arrayAppend( variables.created.subscribers, id );
 		return id;
 	}
 
@@ -1339,15 +1299,6 @@ component extends="tests.ColdboxBase" {
 			return val( arguments.data.results[ 1 ].id ?: 0 );
 		}
 		return 0;
-	}
-
-	private void function cleanupEach( required array ids, required string method ) {
-		for ( var id in arguments.ids ) {
-			try {
-				invoke( variables.lm, arguments.method, [ id ] );
-			} catch ( any e ) {
-			}
-		}
 	}
 
 }

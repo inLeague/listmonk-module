@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Listmonk prints the API token to stderr once, on first install:
+# Listmonk prints the API token to stderr on each --install:
 #   export LISTMONK_ADMIN_API_TOKEN="..."
 # Bind-mount LISTMONK_CREDS_DIR so that file lands on the host.
 #
@@ -22,7 +22,14 @@ restore_creds_owner() {
 	chown -R "${CREDS_UID}:${CREDS_GID}" "$CREDS_DIR" || true
 }
 
-if ! ./listmonk --install --idempotent --yes --config '' >"$INSTALL_LOG" 2>&1; then
+# This is a disposable test stack, not a durable Listmonk. `--install --yes`
+# (no --idempotent) on every start is intentional.
+# CI/ACT start on an empty Postgres, and are not expected to restart their listmonk server
+# in any given run. For local testing, it is necessary to restart the server for each 
+# test run.
+# The API username is reused from LISTMONK_ADMIN_API_USER;
+# the token is always regenerated and written to creds/api.json.env.
+if ! ./listmonk --install --yes --config '' >"$INSTALL_LOG" 2>&1; then
 	cat "$INSTALL_LOG"
 	restore_creds_owner
 	exit 1

@@ -3,9 +3,9 @@
 #   cp .env.example .env   # optional; defaults match ModuleConfig (port 9002)
 #   docker compose up -d
 #
-# First install writes tests/docker/creds/api.json.env (URL, API user, token).
-# Admin/API users are created only on first install. To change them:
-#   docker compose down -v && rm -rf creds && docker compose up -d
+# Each app start writes creds/api.json.env. See listmonk-start.sh: this test
+# stack runs --install --yes on every start (wipe + new API token) so a
+# container restart is a clean Listmonk for local spec re-runs.
 #
 # From the repo root:
 #   docker compose --project-directory tests/docker up -d
@@ -37,6 +37,7 @@ services:
       # Outside /listmonk so the image entrypoint's chown -R does not
       # rewrite host-owned files such as .git-keep.
       - ./creds:/creds
+      - ./listmonk-start.sh:/usr/local/bin/listmonk-start.sh
     environment:
       LISTMONK_app__address: 0.0.0.0:9000
       LISTMONK_db__user: *db-user
