@@ -143,7 +143,8 @@ component extends="tests.ColdboxBase" {
 
 			describe( "health and dashboard", function() {
 				it( "GET /api/health", function() {
-					expectOk( variables.lm.healthCheck(), "healthCheck" );
+					var data = expectOk( variables.lm.healthCheck(), "healthCheck" );
+					expect( data ).toBeTrue();
 				} );
 
 				it( "GET /api/dashboard/charts", function() {
@@ -183,32 +184,53 @@ component extends="tests.ColdboxBase" {
 					if ( structKeyExists( data, "smtp" ) && isArray( data.smtp ) && arrayLen( data.smtp ) ) {
 						smtp = data.smtp[ 1 ];
 					}
-					expectHit( variables.lm.testSMTP( smtp ), "testSMTP" );
+					var tested = variables.lm.testSMTP( smtp );
+					expect( tested.status() ).toBeGT( 0, "testSMTP made no HTTP call" );
+					expect( listFind( "200,400", tested.status() ) ).toBeGT(
+						0,
+						"testSMTP HTTP #tested.status()# #tested.message()#"
+					);
 				} );
 			} );
 
 			describe( "lists", function() {
 				it( "GET /api/lists", function() {
-					var data = expectOk( variables.lm.getLists(), "getLists" );
+					var data = expectOk(
+						variables.lm.getLists( { "query" : "spec-list-#variables.suffix#" } ),
+						"getLists"
+					);
 					expect( data.results ).toBeArray();
+					expect( hasId( idsOf( data.results ), variables.listId ) ).toBeTrue(
+						"fixture list #variables.listId# missing from GET /api/lists"
+					);
 				} );
 
 				it( "GET /api/lists/{id}", function() {
 					var data = expectOk( variables.lm.getList( variables.listId ), "getList" );
 					expect( data.id ).toBe( variables.listId );
+					expect( data.name ).toBe( "spec-list-#variables.suffix#" );
 				} );
 
 				it( "PUT /api/lists/{id}", function() {
-					var data = expectOk(
-						variables.lm.updateList( variables.listId, {
-							"name"        : "spec-list-#variables.suffix#-updated",
-							"type"        : "private",
-							"optin"       : "single",
-							"description" : "updated by spec"
-						} ),
-						"updateList"
-					);
-					expect( data.name ).toInclude( "updated" );
+					var name = "spec-list-#variables.suffix#-updated";
+					var before = variables.lm.getList( variables.listId );
+					expect( before.status() ).toBe( 200 );
+					expect( before.data().id ).toBe( variables.listId );
+
+					var updated = variables.lm.updateList( variables.listId, {
+						"name"        : name,
+						"type"        : "private",
+						"optin"       : "single",
+						"description" : "updated by spec"
+					} );
+					expect( updated.status() ).toBe( 200 );
+					expect( updated.data().name ).toBe( name );
+					expect( updated.data().description ).toBe( "updated by spec" );
+
+					var after = variables.lm.getList( variables.listId );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().name ).toBe( name );
+					expect( after.data().description ).toBe( "updated by spec" );
 				} );
 
 				it( "DELETE /api/lists/{id}", function() {
@@ -220,7 +242,18 @@ component extends="tests.ColdboxBase" {
 						} ),
 						"createList for delete"
 					);
-					expectOk( variables.lm.deleteList( extra.id ), "deleteList" );
+					var id = extra.id;
+
+					var before = variables.lm.getList( id );
+					expect( before.status() ).toBe( 200 );
+					expect( before.data().id ).toBe( id );
+					expect( before.data().name ).toBe( "spec-del-#variables.suffix#" );
+
+					var deleted = variables.lm.deleteList( id );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
+
+					expectGone( variables.lm.getList( id ), "List" );
 				} );
 
 				it( "DELETE /api/lists", function() {
@@ -232,43 +265,73 @@ component extends="tests.ColdboxBase" {
 						variables.lm.createList( { "name" : "spec-bulk-b-#variables.suffix#", "type" : "private", "optin" : "single" } ),
 						"createList bulk b"
 					);
-					expectHit( variables.lm.deleteLists( query = "spec-bulk-#variables.suffix#" ), "deleteLists" );
-					expectOk( variables.lm.deleteList( a.id ), "cleanup deleteLists a" );
-					expectOk( variables.lm.deleteList( b.id ), "cleanup deleteLists b" );
+					expect( variables.lm.getList( a.id ).status() ).toBe( 200 );
+					expect( variables.lm.getList( b.id ).status() ).toBe( 200 );
+
+					var deleted = variables.lm.deleteLists( ids = [ a.id, b.id ] );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
+
+					expectGone( variables.lm.getList( a.id ), "List" );
+					expectGone( variables.lm.getList( b.id ), "List" );
 				} );
 			} );
 
 			describe( "subscribers", function() {
 				it( "GET /api/subscribers", function() {
-					var data = expectOk( variables.lm.getSubscribers(), "getSubscribers" );
+					var data = expectOk(
+						variables.lm.getSubscribers( { "query" : emailQuery( variables.email ) } ),
+						"getSubscribers"
+					);
 					expect( data.results ).toBeArray();
+					expect( hasId( idsOf( data.results ), variables.subscriberId ) ).toBeTrue(
+						"fixture subscriber #variables.subscriberId# missing from GET /api/subscribers"
+					);
 				} );
 
 				it( "GET /api/subscribers/{id}", function() {
 					var data = expectOk( variables.lm.getSubscriber( variables.subscriberId ), "getSubscriber" );
 					expect( data.id ).toBe( variables.subscriberId );
+					expect( data.email ).toBe( variables.email );
+					expect( data.status ).toBe( "enabled" );
 				} );
 
 				it( "PUT /api/subscribers/{id}", function() {
-					var current = expectOk( variables.lm.getSubscriber( variables.subscriberId ), "getSubscriber before put" );
-					var data    = expectOk(
-						variables.lm.updateSubscriber( variables.subscriberId, {
-							"email"  : current.email,
-							"name"   : "Spec Subscriber Updated",
-							"status" : "enabled",
-							"lists"  : [ variables.listId ]
-						} ),
-						"updateSubscriber"
-					);
-					expect( data.name ).toInclude( "Updated" );
+					var extra = createTempSubscriber( "put" );
+					var email = "spec-put-#variables.suffix#@example.test";
+					var before = variables.lm.getSubscriber( extra );
+					expect( before.status() ).toBe( 200 );
+					expect( before.data().name ).toBe( "Spec put" );
+
+					var updated = variables.lm.updateSubscriber( extra, {
+						"email"  : email,
+						"name"   : "Spec Subscriber Updated",
+						"status" : "enabled",
+						"lists"  : [ variables.listId ]
+					} );
+					expect( updated.status() ).toBe( 200 );
+					expect( updated.data().name ).toBe( "Spec Subscriber Updated" );
+
+					var after = variables.lm.getSubscriber( extra );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().id ).toBe( extra );
+					expect( after.data().email ).toBe( email );
+					expect( after.data().name ).toBe( "Spec Subscriber Updated" );
 				} );
 
 				it( "PATCH /api/subscribers/{id}", function() {
-					var data = expectOk(
-						variables.lm.patchSubscriber( variables.subscriberId, { "name" : "Spec Subscriber Patched" } ),
-						"patchSubscriber"
-					);
-					expect( data.name ).toInclude( "Patched" );
+					var extra = createTempSubscriber( "patch" );
+					var before = variables.lm.getSubscriber( extra );
+					expect( before.status() ).toBe( 200 );
+					expect( before.data().name ).toBe( "Spec patch" );
+
+					var patched = variables.lm.patchSubscriber( extra, { "name" : "Spec Subscriber Patched" } );
+					expect( patched.status() ).toBe( 200 );
+					expect( patched.data().name ).toBe( "Spec Subscriber Patched" );
+
+					var after = variables.lm.getSubscriber( extra );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().name ).toBe( "Spec Subscriber Patched" );
 				} );
 
 				it( "GET /api/subscribers/{id}/activity", function() {
@@ -280,91 +343,147 @@ component extends="tests.ColdboxBase" {
 				} );
 
 				it( "GET /api/subscribers/{id}/bounces", function() {
-					expectOk( variables.lm.getSubscriberBounces( variables.subscriberId ), "getSubscriberBounces" );
+					var data = expectOk( variables.lm.getSubscriberBounces( variables.subscriberId ), "getSubscriberBounces" );
+					expect( arrayLen( collectionResults( data ) ) ).toBe( 0 );
 				} );
 
 				it( "DELETE /api/subscribers/{id}/bounces", function() {
-					expectOk( variables.lm.deleteSubscriberBounces( variables.subscriberId ), "deleteSubscriberBounces" );
+					var before = expectOk(
+						variables.lm.getSubscriberBounces( variables.subscriberId ),
+						"getSubscriberBounces before delete"
+					);
+					expect( arrayLen( collectionResults( before ) ) ).toBe( 0 );
+
+					var deleted = variables.lm.deleteSubscriberBounces( variables.subscriberId );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
+
+					var after = expectOk(
+						variables.lm.getSubscriberBounces( variables.subscriberId ),
+						"getSubscriberBounces after delete"
+					);
+					expect( arrayLen( collectionResults( after ) ) ).toBe( 0 );
 				} );
 
 				it( "POST /api/subscribers/{id}/optin", function() {
-					expectHit( variables.lm.sendOptin( variables.subscriberId ), "sendOptin" );
+					expectOk( variables.lm.sendOptin( variables.subscriberId ), "sendOptin" );
 				} );
 
 				it( "PUT /api/subscribers/lists", function() {
-					expectOk(
-						variables.lm.manageSubscriberLists( {
-							"ids"             : [ variables.subscriberId ],
-							"action"          : "add",
-							"target_list_ids" : [ variables.publicListId ],
-							"status"          : "confirmed"
-						} ),
-						"manageSubscriberLists"
-					);
+					var extra = createTempSubscriber( "lists-add" );
+					var before = variables.lm.getSubscriber( extra );
+					expect( before.status() ).toBe( 200 );
+					expect( hasId( subscriberListIds( before.data() ), variables.publicListId ) ).toBeFalse();
+
+					var changed = variables.lm.manageSubscriberLists( {
+						"ids"             : [ extra ],
+						"action"          : "add",
+						"target_list_ids" : [ variables.publicListId ],
+						"status"          : "confirmed"
+					} );
+					expect( changed.status() ).toBe( 200 );
+					expect( changed.data() ).toBeTrue();
+
+					var after = variables.lm.getSubscriber( extra );
+					expect( after.status() ).toBe( 200 );
+					expect( hasId( subscriberListIds( after.data() ), variables.publicListId ) ).toBeTrue();
 				} );
 
 				it( "PUT /api/subscribers/lists/{id}", function() {
-					expectOk(
-						variables.lm.manageSubscriberListsByList(
-							variables.subscriberId,
-							{
-								"ids"             : [ variables.subscriberId ],
-								"action"          : "add",
-								"target_list_ids" : [ variables.publicListId ],
-								"status"          : "confirmed"
-							}
-						),
-						"manageSubscriberListsByList"
-					);
-				} );
+					var extra = createTempSubscriber( "lists-by-id" );
+					var before = variables.lm.getSubscriber( extra );
+					expect( before.status() ).toBe( 200 );
+					expect( hasId( subscriberListIds( before.data() ), variables.publicListId ) ).toBeFalse();
 
-				it( "PUT /api/subscribers/query/lists", function() {
-					expectOk(
-						variables.lm.manageSubscriberListsByQuery( {
-							"query"           : emailQuery( variables.email ),
+					var changed = variables.lm.manageSubscriberListsByList(
+						extra,
+						{
+							"ids"             : [ extra ],
 							"action"          : "add",
 							"target_list_ids" : [ variables.publicListId ],
 							"status"          : "confirmed"
-						} ),
-						"manageSubscriberListsByQuery"
+						}
 					);
+					expect( changed.status() ).toBe( 200 );
+					expect( changed.data() ).toBeTrue();
+
+					var after = variables.lm.getSubscriber( extra );
+					expect( after.status() ).toBe( 200 );
+					expect( hasId( subscriberListIds( after.data() ), variables.publicListId ) ).toBeTrue();
+				} );
+
+				it( "PUT /api/subscribers/query/lists", function() {
+					var extraEmail = "spec-lists-q-#variables.suffix#@example.test";
+					var extra = createTempSubscriber( "lists-q", extraEmail );
+					var before = variables.lm.getSubscriber( extra );
+					expect( before.status() ).toBe( 200 );
+					expect( hasId( subscriberListIds( before.data() ), variables.publicListId ) ).toBeFalse();
+
+					var changed = variables.lm.manageSubscriberListsByQuery( {
+						"query"           : emailQuery( extraEmail ),
+						"action"          : "add",
+						"target_list_ids" : [ variables.publicListId ],
+						"status"          : "confirmed"
+					} );
+					expect( changed.status() ).toBe( 200 );
+					expect( changed.data() ).toBeTrue();
+
+					var after = variables.lm.getSubscriber( extra );
+					expect( after.status() ).toBe( 200 );
+					expect( hasId( subscriberListIds( after.data() ), variables.publicListId ) ).toBeTrue();
 				} );
 
 				it( "PUT /api/subscribers/{id}/blocklist", function() {
 					var extra = createTempSubscriber( "block-one" );
-					expectOk( variables.lm.blocklistSubscriber( extra ), "blocklistSubscriber" );
-					expectOk( variables.lm.deleteSubscriber( extra ), "cleanup blocklistSubscriber" );
+					var before = variables.lm.getSubscriber( extra );
+					expect( before.status() ).toBe( 200 );
+					expect( before.data().status ).toBe( "enabled" );
+
+					var blocked = variables.lm.blocklistSubscriber( extra );
+					expect( blocked.status() ).toBe( 200 );
+					expect( blocked.data() ).toBeTrue();
+
+					var after = variables.lm.getSubscriber( extra );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().status ).toBe( "blocklisted" );
 				} );
 
 				it( "PUT /api/subscribers/blocklist", function() {
 					var extra = createTempSubscriber( "block-bulk" );
-					expectOk(
-						variables.lm.blocklistSubscribers( { "ids" : [ extra ] } ),
-						"blocklistSubscribers"
-					);
-					expectOk( variables.lm.deleteSubscriber( extra ), "cleanup blocklistSubscribers" );
+					var before = variables.lm.getSubscriber( extra );
+					expect( before.status() ).toBe( 200 );
+					expect( before.data().status ).toBe( "enabled" );
+
+					var blocked = variables.lm.blocklistSubscribers( { "ids" : [ extra ] } );
+					expect( blocked.status() ).toBe( 200 );
+					expect( blocked.data() ).toBeTrue();
+
+					var after = variables.lm.getSubscriber( extra );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().status ).toBe( "blocklisted" );
 				} );
 
 				it( "PUT /api/subscribers/query/blocklist", function() {
 					var extraEmail = "spec-qblock-#variables.suffix#@example.test";
-					createTempSubscriber( "qblock", extraEmail );
-					expectOk(
-						variables.lm.blocklistSubscribersByQuery( {
-							"query" : emailQuery( extraEmail )
-						} ),
-						"blocklistSubscribersByQuery"
-					);
-					expectOk(
-						variables.lm.deleteSubscribersByQuery( {
-							"query" : emailQuery( extraEmail )
-						} ),
-						"cleanup query blocklist"
-					);
+					var extra = createTempSubscriber( "qblock", extraEmail );
+					var before = variables.lm.getSubscriber( extra );
+					expect( before.status() ).toBe( 200 );
+					expect( before.data().status ).toBe( "enabled" );
+
+					var blocked = variables.lm.blocklistSubscribersByQuery( {
+						"query" : emailQuery( extraEmail )
+					} );
+					expect( blocked.status() ).toBe( 200 );
+					expect( blocked.data() ).toBeTrue();
+
+					var after = variables.lm.getSubscriber( extra );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().status ).toBe( "blocklisted" );
 				} );
 
 				it( "GET /api/subscribers/export", function() {
 					var result = variables.lm.exportSubscribers( { "per_page" : "all" } );
-					expect( result.isOk() ).toBeTrue( "exportSubscribers HTTP #result.status()# #result.message()#" );
+					expect( result.status() ).toBe( 200, "exportSubscribers HTTP #result.status()# #result.message()#" );
 				} );
 
 				it( "DELETE /api/subscribers/{id}", function() {
@@ -382,35 +501,46 @@ component extends="tests.ColdboxBase" {
 					expect( deleted.status() ).toBe( 200 );
 					expect( deleted.data() ).toBeTrue();
 
-					var after = variables.lm.getSubscriber( extra );
-					expect( after.status() ).toBe( 400 );
-					expect( after.message() ).toBe( "Subscriber (#extra#: ) not found" );
+					expectGone( variables.lm.getSubscriber( extra ), "Subscriber", extra );
 				} );
 
 				it( "DELETE /api/subscribers", function() {
 					var a = createTempSubscriber( "del-a" );
 					var b = createTempSubscriber( "del-b" );
-					expectHit( variables.lm.bulkDeleteSubscribers( [ a ] ), "bulkDeleteSubscribers" );
-					expectOk( variables.lm.deleteSubscriber( a ), "cleanup bulkDelete a" );
-					expectOk( variables.lm.deleteSubscriber( b ), "cleanup bulkDelete b" );
+					expect( variables.lm.getSubscriber( a ).status() ).toBe( 200 );
+					expect( variables.lm.getSubscriber( b ).status() ).toBe( 200 );
+
+					var deleted = variables.lm.bulkDeleteSubscribers( [ a, b ] );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
+
+					expectGone( variables.lm.getSubscriber( a ), "Subscriber", a );
+					expectGone( variables.lm.getSubscriber( b ), "Subscriber", b );
 				} );
 
 				it( "POST /api/subscribers/query/delete", function() {
 					var extraEmail = "spec-qdel-#variables.suffix#@example.test";
-					createTempSubscriber( "qdel", extraEmail );
-					expectOk(
-						variables.lm.deleteSubscribersByQuery( {
-							"query" : emailQuery( extraEmail )
-						} ),
-						"deleteSubscribersByQuery"
-					);
+					var extra = createTempSubscriber( "qdel", extraEmail );
+					expect( variables.lm.getSubscriber( extra ).status() ).toBe( 200 );
+					expect( findSubscriberByEmail( extraEmail ).id ).toBe( extra );
+
+					var deleted = variables.lm.deleteSubscribersByQuery( {
+						"query" : emailQuery( extraEmail )
+					} );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
+
+					expectGone( variables.lm.getSubscriber( extra ), "Subscriber", extra );
+					expect( structIsEmpty( findSubscriberByEmail( extraEmail ) ) ).toBeTrue();
 				} );
 			} );
 
 			describe( "templates", function() {
 				it( "GET /api/templates", function() {
 					var data = expectOk( variables.lm.getTemplates(), "getTemplates" );
-					expect( isArray( data ) || isStruct( data ) ).toBeTrue();
+					expect( hasId( idsOf( collectionResults( data ) ), variables.specCampaignTemplateId ) ).toBeTrue(
+						"fixture template #variables.specCampaignTemplateId# missing from GET /api/templates"
+					);
 				} );
 
 				it( "GET /api/templates/{id}", function() {
@@ -419,19 +549,26 @@ component extends="tests.ColdboxBase" {
 				} );
 
 				it( "PUT /api/templates/{id}", function() {
-					expectOk(
-						variables.lm.updateTemplate( variables.specCampaignTemplateId, {
-							"name" : "spec-campaign-tpl-#variables.suffix#-updated",
-							"type" : "campaign",
-							"body" : '{{ template "content" . }}'
-						} ),
-						"updateTemplate"
-					);
+					var name = "spec-campaign-tpl-#variables.suffix#-updated";
+					var before = variables.lm.getTemplate( variables.specCampaignTemplateId );
+					expect( before.status() ).toBe( 200 );
+
+					var updated = variables.lm.updateTemplate( variables.specCampaignTemplateId, {
+						"name" : name,
+						"type" : "campaign",
+						"body" : '{{ template "content" . }}'
+					} );
+					expect( updated.status() ).toBe( 200 );
+					expect( updated.data().name ).toBe( name );
+
+					var after = variables.lm.getTemplate( variables.specCampaignTemplateId );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().name ).toBe( name );
 				} );
 
 				it( "GET /api/templates/{id}/preview", function() {
 					var result = variables.lm.previewTemplateById( variables.specCampaignTemplateId );
-					expect( result.isOk() ).toBeTrue( "previewTemplateById HTTP #result.status()# #result.message()#" );
+					expect( result.status() ).toBe( 200, "previewTemplateById HTTP #result.status()# #result.message()#" );
 				} );
 
 				it( "POST /api/templates/preview", function() {
@@ -439,13 +576,33 @@ component extends="tests.ColdboxBase" {
 						"template_type" : "campaign",
 						"body"          : '{{ template "content" . }}'
 					} );
-					expectHit( result, "previewTemplate" );
+					expect( result.status() ).toBe( 400, "previewTemplate HTTP #result.status()# #result.message()#" );
+					expect( result.message() ).toBe(
+						'The placeholder {{ template "content" . }} should appear exactly once in the template.'
+					);
 				} );
 
 				it( "PUT /api/templates/{id}/default", function() {
-					expectOk( variables.lm.setDefaultTemplate( variables.specCampaignTemplateId ), "setDefaultTemplate" );
-					if ( variables.defaultTemplateId ) {
-						expectOk( variables.lm.setDefaultTemplate( variables.defaultTemplateId ), "restore default template" );
+					var setDefault = variables.lm.setDefaultTemplate( variables.specCampaignTemplateId );
+					expect( setDefault.status() ).toBe( 200 );
+					expect( setDefault.data() ).toBeTrue();
+
+					var after = variables.lm.getTemplate( variables.specCampaignTemplateId );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().is_default ).toBeTrue();
+
+					if ( variables.defaultTemplateId && variables.defaultTemplateId != variables.specCampaignTemplateId ) {
+						var restored = variables.lm.setDefaultTemplate( variables.defaultTemplateId );
+						expect( restored.status() ).toBe( 200 );
+						expect( restored.data() ).toBeTrue();
+
+						var original = variables.lm.getTemplate( variables.defaultTemplateId );
+						expect( original.status() ).toBe( 200 );
+						expect( original.data().is_default ).toBeTrue();
+
+						var specTpl = variables.lm.getTemplate( variables.specCampaignTemplateId );
+						expect( specTpl.status() ).toBe( 200 );
+						expect( specTpl.data().is_default ).toBeFalse();
 					}
 				} );
 
@@ -458,53 +615,74 @@ component extends="tests.ColdboxBase" {
 						} ),
 						"createTemplate for delete"
 					);
-					expectOk( variables.lm.deleteTemplate( entityId( extra ) ), "deleteTemplate" );
+					var id = entityId( extra );
+
+					var before = variables.lm.getTemplate( id );
+					expect( before.status() ).toBe( 200 );
+					expect( entityId( before.data() ) ).toBe( id );
+
+					var deleted = variables.lm.deleteTemplate( id );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
+
+					expectGone( variables.lm.getTemplate( id ), "Template" );
 				} );
 			} );
 
 			describe( "campaigns", function() {
 				it( "GET /api/campaigns", function() {
-					var data = expectOk( variables.lm.getCampaigns(), "getCampaigns" );
+					var data = expectOk(
+						variables.lm.getCampaigns( { "query" : "spec-campaign-#variables.suffix#" } ),
+						"getCampaigns"
+					);
 					expect( data.results ).toBeArray();
+					expect( hasId( idsOf( data.results ), variables.campaignId ) ).toBeTrue(
+						"fixture campaign #variables.campaignId# missing from GET /api/campaigns"
+					);
 				} );
 
 				it( "GET /api/campaigns/{id}", function() {
 					var data = expectOk( variables.lm.getCampaign( variables.campaignId ), "getCampaign" );
 					expect( data.id ).toBe( variables.campaignId );
+					expect( data.status ).toBe( "draft" );
 				} );
 
 				it( "PUT /api/campaigns/{id}", function() {
+					var name = "spec-campaign-#variables.suffix#-updated";
 					var current = expectOk( variables.lm.getCampaign( variables.campaignId ), "getCampaign before put" );
-					expectOk(
-						variables.lm.updateCampaign( variables.campaignId, {
-							"name"         : "spec-campaign-#variables.suffix#-updated",
-							"subject"      : current.subject,
-							"lists"        : [ variables.listId ],
-							"type"         : "regular",
-							"content_type" : "html",
-							"body"         : current.body ?: "<p>updated</p>",
-							"messenger"    : "email",
-							"template_id"  : variables.campaignTemplateId,
-							"tags"         : [ "spec" ]
-						} ),
-						"updateCampaign"
-					);
+					expect( current.id ).toBe( variables.campaignId );
+
+					var updated = variables.lm.updateCampaign( variables.campaignId, {
+						"name"         : name,
+						"subject"      : current.subject,
+						"lists"        : [ variables.listId ],
+						"type"         : "regular",
+						"content_type" : "html",
+						"body"         : current.body ?: "<p>updated</p>",
+						"messenger"    : "email",
+						"template_id"  : variables.campaignTemplateId,
+						"tags"         : [ "spec" ]
+					} );
+					expect( updated.status() ).toBe( 200 );
+					expect( updated.data().name ).toBe( name );
+
+					var after = variables.lm.getCampaign( variables.campaignId );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().name ).toBe( name );
 				} );
 
 				it( "GET /api/campaigns/{id}/preview", function() {
 					var result = variables.lm.previewCampaign( variables.campaignId );
-					expect( result.isOk() ).toBeTrue( "previewCampaign HTTP #result.status()# #result.message()#" );
+					expect( result.status() ).toBe( 200, "previewCampaign HTTP #result.status()# #result.message()#" );
 				} );
 
 				it( "POST /api/campaigns/{id}/preview", function() {
-					expectHit(
-						variables.lm.previewCampaignBody( variables.campaignId, {
-							"body"         : "<p>preview body</p>",
-							"content_type" : "html",
-							"template_id"  : variables.campaignTemplateId
-						} ),
-						"previewCampaignBody"
-					);
+					var result = variables.lm.previewCampaignBody( variables.campaignId, {
+						"body"         : "<p>preview body</p>",
+						"content_type" : "html",
+						"template_id"  : variables.campaignTemplateId
+					} );
+					expect( result.status() ).toBe( 200, "previewCampaignBody HTTP #result.status()# #result.message()#" );
 				} );
 
 				it( "POST /api/campaigns/{id}/preview/archive", function() {
@@ -515,28 +693,33 @@ component extends="tests.ColdboxBase" {
 				} );
 
 				it( "POST /api/campaigns/{id}/text", function() {
-					expectHit( variables.lm.previewCampaignText( variables.campaignId ), "previewCampaignText" );
+					var result = variables.lm.previewCampaignText( variables.campaignId );
+					expect( result.status() ).toBe( 200, "previewCampaignText HTTP #result.status()# #result.message()#" );
 				} );
 
 				it( "POST /api/campaigns/{id}/content", function() {
-					expectHit(
-						variables.lm.setCampaignContent( variables.campaignId, {
-							"body"         : "<p>replaced content</p>",
-							"content_type" : "html"
-						} ),
-						"setCampaignContent"
-					);
+					var converted = variables.lm.setCampaignContent( variables.campaignId, {
+						"from" : "markdown",
+						"to"   : "html",
+						"body" : "**replaced content**"
+					} );
+					expect( converted.status() ).toBe( 200, "setCampaignContent HTTP #converted.status()# #converted.message()#" );
+					expect( converted.data() ).toInclude( "replaced content" );
 				} );
 
 				it( "PUT /api/campaigns/{id}/archive", function() {
-					expectOk(
-						variables.lm.updateCampaignArchive( variables.campaignId, {
-							"archive"             : true,
-							"archive_template_id" : variables.campaignTemplateId,
-							"archive_slug"        : "spec-#variables.suffix#"
-						} ),
-						"updateCampaignArchive"
-					);
+					var slug = "spec-#variables.suffix#";
+					var archived = variables.lm.updateCampaignArchive( variables.campaignId, {
+						"archive"             : true,
+						"archive_template_id" : variables.campaignTemplateId,
+						"archive_slug"        : slug
+					} );
+					expect( archived.status() ).toBe( 200 );
+
+					var after = variables.lm.getCampaign( variables.campaignId );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().archive ).toBeTrue();
+					expect( after.data().archive_slug ).toBe( slug );
 				} );
 
 				it( "GET /api/campaigns/running/stats", function() {
@@ -560,27 +743,51 @@ component extends="tests.ColdboxBase" {
 				} );
 
 				it( "PUT /api/campaigns/{id}/status", function() {
-					expectHit(
-						variables.lm.updateCampaignStatus( variables.campaignId, { "status" : "scheduled" } ),
-						"updateCampaignStatus"
+					var extra = expectOk(
+						variables.lm.createCampaign( {
+							"name"         : "spec-camp-status-#variables.suffix#",
+							"subject"      : "status me",
+							"lists"        : [ variables.listId ],
+							"type"         : "regular",
+							"content_type" : "html",
+							"body"         : "<p>status</p>",
+							"messenger"    : "email",
+							"template_id"  : variables.campaignTemplateId,
+							"send_at"      : ymd( dateAdd( "d", 1, now() ) ) & "T12:00:00Z"
+						} ),
+						"createCampaign for status"
 					);
-					variables.lm.updateCampaignStatus( variables.campaignId, { "status" : "draft" } );
+					arrayAppend( variables.created.campaigns, extra.id );
+					expect( extra.status ).toBe( "draft" );
+
+					var scheduled = variables.lm.updateCampaignStatus( extra.id, { "status" : "scheduled" } );
+					expect( scheduled.status() ).toBe( 200, "updateCampaignStatus scheduled HTTP #scheduled.status()# #scheduled.message()#" );
+
+					var afterSched = variables.lm.getCampaign( extra.id );
+					expect( afterSched.status() ).toBe( 200 );
+					expect( afterSched.data().status ).toBe( "scheduled" );
+
+					var drafted = variables.lm.updateCampaignStatus( extra.id, { "status" : "draft" } );
+					expect( drafted.status() ).toBe( 200, "updateCampaignStatus draft HTTP #drafted.status()# #drafted.message()#" );
+
+					var afterDraft = variables.lm.getCampaign( extra.id );
+					expect( afterDraft.status() ).toBe( 200 );
+					expect( afterDraft.data().status ).toBe( "draft" );
 				} );
 
 				it( "POST /api/campaigns/{id}/test", function() {
-					expectHit(
-						variables.lm.testCampaign( variables.campaignId, {
-							"subscribers"  : [ variables.email ],
-							"template_id"  : variables.campaignTemplateId,
-							"content_type" : "html",
-							"body"         : "<p>test</p>",
-							"subject"      : "test",
-							"lists"        : [ variables.listId ],
-							"name"         : "spec-test",
-							"type"         : "regular"
-						} ),
-						"testCampaign"
-					);
+					var result = variables.lm.testCampaign( variables.campaignId, {
+						"subscribers"  : [ variables.email ],
+						"template_id"  : variables.campaignTemplateId,
+						"content_type" : "html",
+						"body"         : "<p>test</p>",
+						"subject"      : "test",
+						"lists"        : [ variables.listId ],
+						"name"         : "spec-test",
+						"type"         : "regular",
+						"messenger"    : "email"
+					} );
+					expect( result.status() ).toBe( 200, "testCampaign HTTP #result.status()# #result.message()#" );
 				} );
 
 				it( "DELETE /api/campaigns/{id}", function() {
@@ -597,7 +804,17 @@ component extends="tests.ColdboxBase" {
 						} ),
 						"createCampaign for delete"
 					);
-					expectOk( variables.lm.deleteCampaign( extra.id ), "deleteCampaign" );
+					var id = extra.id;
+
+					var before = variables.lm.getCampaign( id );
+					expect( before.status() ).toBe( 200 );
+					expect( before.data().id ).toBe( id );
+
+					var deleted = variables.lm.deleteCampaign( id );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
+
+					expectGone( variables.lm.getCampaign( id ), "Campaign" );
 				} );
 
 				it( "DELETE /api/campaigns", function() {
@@ -614,7 +831,13 @@ component extends="tests.ColdboxBase" {
 						} ),
 						"createCampaign for bulk delete"
 					);
-					expectOk( variables.lm.deleteCampaigns( { "query" : "spec-camp-bulk-#variables.suffix#" } ), "deleteCampaigns" );
+					expect( variables.lm.getCampaign( extra.id ).status() ).toBe( 200 );
+
+					var deleted = variables.lm.deleteCampaigns( { "id" : [ extra.id ] } );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
+
+					expectGone( variables.lm.getCampaign( extra.id ), "Campaign" );
 				} );
 			} );
 
@@ -631,13 +854,26 @@ component extends="tests.ColdboxBase" {
 					if ( fileExists( png ) ) {
 						fileDelete( png );
 					}
-					var data = expectOk( uploaded, "uploadMedia" );
-					var id   = entityId( data );
+					expect( uploaded.status() ).toBe( 200, "uploadMedia HTTP #uploaded.status()# #uploaded.message()#" );
+					var id = entityId( uploaded.data() );
 					expect( id ).toBeGT( 0 );
 					arrayAppend( variables.created.media, id );
-					expectOk( variables.lm.getMediaById( id ), "getMediaById" );
-					expectOk( variables.lm.deleteMedia( id ), "deleteMedia" );
+
+					var got = variables.lm.getMediaById( id );
+					expect( got.status() ).toBe( 200 );
+					expect( entityId( got.data() ) ).toBe( id );
+
+					var listed = expectOk( variables.lm.getMedia(), "getMedia after upload" );
+					expect( hasId( idsOf( collectionResults( listed ) ), id ) ).toBeTrue(
+						"uploaded media #id# missing from GET /api/media"
+					);
+
+					var deleted = variables.lm.deleteMedia( id );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
 					arrayDelete( variables.created.media, id );
+
+					expectGone( variables.lm.getMediaById( id ), "Media" );
 				} );
 			} );
 
@@ -647,27 +883,30 @@ component extends="tests.ColdboxBase" {
 					expect( isStruct( data ) || isArray( data ) ).toBeTrue();
 				} );
 
-				it( "GET /api/bounces/{id} (404 when empty)", function() {
+				it( "GET /api/bounces/{id} (400 when missing)", function() {
 					var listed = expectOk( variables.lm.getBounces( { "per_page" : 1 } ), "getBounces for id" );
-					var id     = 0;
-					if ( isStruct( listed ) && structKeyExists( listed, "results" ) && isArray( listed.results ) && arrayLen( listed.results ) ) {
-						id = listed.results[ 1 ].id;
-					}
-					if ( id ) {
-						expectOk( variables.lm.getBounce( id ), "getBounce" );
-						expectOk( variables.lm.deleteBounce( id ), "deleteBounce" );
+					var rows   = collectionResults( listed );
+					if ( arrayLen( rows ) ) {
+						var id = rows[ 1 ].id;
+						var got = variables.lm.getBounce( id );
+						expect( got.status() ).toBe( 200 );
+						expect( got.data().id ).toBe( id );
 					} else {
-						var missing = variables.lm.getBounce( 999999 );
-						expect( missing.isError() ).toBeTrue();
+						expectGone( variables.lm.getBounce( 999999 ), "Bounce" );
 					}
 				} );
 
 				it( "PUT /api/bounces/blocklist", function() {
-					expectHit( variables.lm.blocklistBouncedSubscribers(), "blocklistBouncedSubscribers" );
+					var blocked = variables.lm.blocklistBouncedSubscribers();
+					expect( blocked.status() ).toBe( 200, "blocklistBouncedSubscribers HTTP #blocked.status()# #blocked.message()#" );
 				} );
 
 				it( "DELETE /api/bounces", function() {
-					expectOk( variables.lm.deleteBounces( { "all" : true } ), "deleteBounces" );
+					var deleted = variables.lm.deleteBounces( { "all" : true } );
+					expect( deleted.status() ).toBe( 200, "deleteBounces HTTP #deleted.status()# #deleted.message()#" );
+
+					var after = expectOk( variables.lm.getBounces( { "per_page" : "all" } ), "getBounces after delete all" );
+					expect( arrayLen( collectionResults( after ) ) ).toBe( 0 );
 				} );
 			} );
 
@@ -677,11 +916,12 @@ component extends="tests.ColdboxBase" {
 				} );
 
 				it( "GET /api/import/subscribers/logs", function() {
-					expectHit( variables.lm.getImportSubscriberLogs(), "getImportSubscriberLogs" );
+					var result = variables.lm.getImportSubscriberLogs();
+					expect( result.status() ).toBe( 200, "getImportSubscriberLogs HTTP #result.status()# #result.message()#" );
 				} );
 
-				it( "POST /api/import/subscribers and DELETE /api/import/subscribers", function() {
-					var csvPath = getTempDirectory() & "spec-import-#variables.suffix#.csv";
+				it( "POST /api/import/subscribers", function() {
+					var csvPath     = getTempDirectory() & "spec-import-#variables.suffix#.csv";
 					var importEmail = "spec-import-#variables.suffix#@example.test";
 					fileWrite( csvPath, "email,name#chr( 10 )##importEmail#,Import User#chr( 10 )#" );
 					var started = variables.lm.importSubscribers(
@@ -690,67 +930,146 @@ component extends="tests.ColdboxBase" {
 							"delim"               : ",",
 							"lists"               : [ variables.listId ],
 							"overwrite"           : false,
-							"subscription_status" : "unconfirmed"
+							"subscription_status" : "confirmed"
 						},
 						csvPath
 					);
 					if ( fileExists( csvPath ) ) {
 						fileDelete( csvPath );
 					}
-					expectHit( started, "importSubscribers" );
-					expectHit( variables.lm.stopImportSubscribers(), "stopImportSubscribers" );
-					variables.lm.deleteSubscribersByQuery( {
-						"query" : emailQuery( importEmail )
-					} );
+					expect( started.status() ).toBe( 200, "importSubscribers HTTP #started.status()# #started.message()#" );
+
+					var found = {};
+					for ( var i = 1; i <= 40; i++ ) {
+						found = findSubscriberByEmail( importEmail );
+						if ( !structIsEmpty( found ) ) {
+							break;
+						}
+						sleep( 250 );
+					}
+					expect( found.email ?: "" ).toBe( importEmail );
+					expect( found.name ).toBe( "Import User" );
+					arrayAppend( variables.created.subscribers, val( found.id ) );
 				} );
 			} );
 
 			describe( "transactional", function() {
 				it( "POST /api/tx", function() {
-					expectHit(
-						variables.lm.sendTransactional( {
-							"subscriber_email" : variables.email,
-							"template_id"      : variables.txTemplateId,
-							"data"             : { "name" : "Spec" },
-							"content_type"     : "html"
-						} ),
-						"sendTransactional"
-					);
+					var sent = variables.lm.sendTransactional( {
+						"subscriber_email" : variables.email,
+						"template_id"      : variables.txTemplateId,
+						"data"             : { "name" : "Spec" },
+						"content_type"     : "html"
+					} );
+					expect( sent.status() ).toBe( 200, "sendTransactional HTTP #sent.status()# #sent.message()#" );
+					expect( sent.data() ).toBeTrue();
 				} );
 			} );
 
 			describe( "maintenance", function() {
 				it( "DELETE /api/maintenance/subscribers/{type}", function() {
-					expectHit( variables.lm.gcSubscribers( "orphans" ), "gcSubscribers" );
+					var extra = expectOk(
+						variables.lm.createSubscriber( {
+							"email"                    : "spec-orphan-#variables.suffix#@example.test",
+							"name"                     : "Spec orphan",
+							"status"                   : "enabled",
+							"lists"                    : [],
+							"preconfirm_subscriptions" : true
+						} ),
+						"create orphan subscriber"
+					);
+					var id = val( extra.id );
+					arrayAppend( variables.created.subscribers, id );
+					expect( variables.lm.getSubscriber( id ).status() ).toBe( 200 );
+
+					var gc = variables.lm.gcSubscribers( "orphan" );
+					expect( gc.status() ).toBe( 200, "gcSubscribers HTTP #gc.status()# #gc.message()#" );
+
+					expectGone( variables.lm.getSubscriber( id ), "Subscriber", id );
 				} );
 
 				it( "DELETE /api/maintenance/analytics/{type}", function() {
-					expectHit( variables.lm.gcCampaignAnalytics( "views" ), "gcCampaignAnalytics" );
+					var gc = variables.lm.gcCampaignAnalytics( "views", {
+						"before_date" : ymd( dateAdd( "d", 1, now() ) ) & "T00:00:00Z"
+					} );
+					expect( gc.status() ).toBe( 200, "gcCampaignAnalytics HTTP #gc.status()# #gc.message()#" );
 				} );
 
 				it( "GET /api/maintenance/analytics/{type}/export", function() {
-					expectHit( variables.lm.exportCampaignAnalytics( "views" ), "exportCampaignAnalytics" );
+					var result = variables.lm.exportCampaignAnalytics( "views", {
+						"since" : ymd( dateAdd( "d", -30, now() ) ) & "T00:00:00Z"
+					} );
+					expect( result.status() ).toBe( 200, "exportCampaignAnalytics HTTP #result.status()# #result.message()#" );
 				} );
 
 				it( "DELETE /api/maintenance/subscriptions/unconfirmed", function() {
-					expectHit( variables.lm.gcUnconfirmedSubscriptions(), "gcUnconfirmedSubscriptions" );
+					var dbl = expectOk(
+						variables.lm.createList( {
+							"name"  : "spec-double-#variables.suffix#",
+							"type"  : "private",
+							"optin" : "double"
+						} ),
+						"createList double optin"
+					);
+					arrayAppend( variables.created.lists, dbl.id );
+					var extra = createTempSubscriber( "unconf" );
+
+					var added = variables.lm.manageSubscriberLists( {
+						"ids"             : [ extra ],
+						"action"          : "add",
+						"target_list_ids" : [ dbl.id ],
+						"status"          : "unconfirmed"
+					} );
+					expect( added.status() ).toBe( 200 );
+
+					var before = variables.lm.getSubscriber( extra );
+					expect( before.status() ).toBe( 200 );
+					expect( hasId( subscriberListIds( before.data() ), dbl.id ) ).toBeTrue();
+
+					var gc = variables.lm.gcUnconfirmedSubscriptions( {
+						"before_date" : ymd( dateAdd( "d", 1, now() ) ) & "T00:00:00Z"
+					} );
+					expect( gc.status() ).toBe( 200, "gcUnconfirmedSubscriptions HTTP #gc.status()# #gc.message()#" );
+
+					var after = variables.lm.getSubscriber( extra );
+					expect( after.status() ).toBe( 200 );
+					expect( hasId( subscriberListIds( after.data() ), dbl.id ) ).toBeFalse(
+						"unconfirmed subscription on list #dbl.id# should have been garbage-collected"
+					);
 				} );
 			} );
 
 			describe( "public", function() {
 				it( "GET /api/public/lists", function() {
-					expectOk( variables.lm.getPublicLists(), "getPublicLists" );
+					var data = expectOk( variables.lm.getPublicLists(), "getPublicLists" );
+					var found = false;
+					for ( var l in collectionResults( data ) ) {
+						if ( ( l.uuid ?: "" ) == variables.publicListUuid ) {
+							found = true;
+							break;
+						}
+					}
+					expect( found ).toBeTrue(
+						"fixture public list uuid #variables.publicListUuid# missing from GET /api/public/lists"
+					);
 				} );
 
 				it( "POST /api/public/subscription", function() {
-					expectHit(
-						variables.lm.publicSubscription( {
-							"email" : "spec-pub-#variables.suffix#@example.test",
-							"name"  : "Public Spec",
-							"list_uuids" : [ variables.publicListUuid ]
-						} ),
-						"publicSubscription"
-					);
+					var email = "spec-pub-#variables.suffix#@example.test";
+					expect( structIsEmpty( findSubscriberByEmail( email ) ) ).toBeTrue();
+
+					var subscribed = variables.lm.publicSubscription( {
+						"email"      : email,
+						"name"       : "Public Spec",
+						"list_uuids" : [ variables.publicListUuid ]
+					} );
+					expect( subscribed.status() ).toBe( 200, "publicSubscription HTTP #subscribed.status()# #subscribed.message()#" );
+
+					var found = findSubscriberByEmail( email );
+					expect( found.email ?: "" ).toBe( email );
+					expect( found.name ).toBe( "Public Spec" );
+					expect( hasId( subscriberListIds( found ), variables.publicListId ) ).toBeTrue();
+					arrayAppend( variables.created.subscribers, val( found.id ) );
 				} );
 
 				it( "GET /api/public/captcha/altcha", function() {
@@ -775,32 +1094,52 @@ component extends="tests.ColdboxBase" {
 				} );
 
 				it( "POST /api/users, PUT /api/users/{id}, DELETE /api/users/{id}", function() {
-					var created = variables.lm.createUser( {
-						"username"       : "specapi#variables.suffix#",
+					var username = "specapi#variables.suffix#";
+					var email    = "spec-api-#variables.suffix#@example.test";
+					var created  = variables.lm.createUser( {
+						"username"       : username,
 						"name"           : "Spec API User",
-						"email"          : "spec-api-#variables.suffix#@example.test",
+						"email"          : email,
 						"type"           : "api",
 						"status"         : "enabled",
 						"password_login" : false,
 						"user_role_id"   : 1
 					} );
-					var data = expectOk( created, "createUser" );
-					var id   = entityId( data );
+					expect( created.status() ).toBe( 200, "createUser HTTP #created.status()# #created.message()#" );
+					var id = entityId( created.data() );
 					arrayAppend( variables.created.users, id );
-					expectOk(
-						variables.lm.updateUser( id, {
-							"username"       : "specapi#variables.suffix#",
-							"name"           : "Spec API User Updated",
-							"email"          : "spec-api-#variables.suffix#@example.test",
-							"type"           : "api",
-							"status"         : "disabled",
-							"password_login" : false,
-							"user_role_id"   : 1
-						} ),
-						"updateUser"
-					);
-					expectOk( variables.lm.deleteUser( id ), "deleteUser" );
+
+					var got = variables.lm.getUser( id );
+					expect( got.status() ).toBe( 200 );
+					expect( got.data().id ).toBe( id );
+					expect( got.data().username ).toBe( username );
+					expect( got.data().name ).toBe( "Spec API User" );
+					expect( got.data().status ).toBe( "enabled" );
+
+					var updated = variables.lm.updateUser( id, {
+						"username"       : username,
+						"name"           : "Spec API User Updated",
+						"email"          : email,
+						"type"           : "api",
+						"status"         : "disabled",
+						"password_login" : false,
+						"user_role_id"   : 1
+					} );
+					expect( updated.status() ).toBe( 200 );
+					expect( updated.data().name ).toBe( "Spec API User Updated" );
+					expect( updated.data().status ).toBe( "disabled" );
+
+					var after = variables.lm.getUser( id );
+					expect( after.status() ).toBe( 200 );
+					expect( after.data().name ).toBe( "Spec API User Updated" );
+					expect( after.data().status ).toBe( "disabled" );
+
+					var deleted = variables.lm.deleteUser( id );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
 					arrayDelete( variables.created.users, id );
+
+					expectGone( variables.lm.getUser( id ), "User" );
 				} );
 
 				it( "GET /api/roles/users", function() {
@@ -812,22 +1151,43 @@ component extends="tests.ColdboxBase" {
 				} );
 
 				it( "POST/PUT/DELETE user roles", function() {
+					var name = "spec-role-#variables.suffix#";
 					var created = variables.lm.createUserRole( {
-						"name"        : "spec-role-#variables.suffix#",
+						"name"        : name,
 						"permissions" : [ "subscribers:get_all" ]
 					} );
-					var data = expectOk( created, "createUserRole" );
-					var id   = entityId( data );
+					expect( created.status() ).toBe( 200, "createUserRole HTTP #created.status()# #created.message()#" );
+					var id = entityId( created.data() );
 					arrayAppend( variables.created.roles, id );
-					expectOk(
-						variables.lm.updateUserRole( id, {
-							"name"        : "spec-role-#variables.suffix#-updated",
-							"permissions" : [ "subscribers:get_all", "lists:get_all" ]
-						} ),
-						"updateUserRole"
-					);
-					expectOk( variables.lm.deleteRole( id ), "deleteRole" );
+
+					var listed = expectOk( variables.lm.getUserRoles(), "getUserRoles after create" );
+					expect( hasId( idsOf( collectionResults( listed ) ), id ) ).toBeTrue();
+
+					var updatedName = "#name#-updated";
+					var updated = variables.lm.updateUserRole( id, {
+						"name"        : updatedName,
+						"permissions" : [ "subscribers:get_all", "lists:get_all" ]
+					} );
+					expect( updated.status() ).toBe( 200 );
+					expect( updated.data().name ).toBe( updatedName );
+
+					var after = expectOk( variables.lm.getUserRoles(), "getUserRoles after update" );
+					var found = {};
+					for ( var role in collectionResults( after ) ) {
+						if ( val( role.id ) == id ) {
+							found = role;
+							break;
+						}
+					}
+					expect( found.name ?: "" ).toBe( updatedName );
+
+					var deleted = variables.lm.deleteRole( id );
+					expect( deleted.status() ).toBe( 200 );
+					expect( deleted.data() ).toBeTrue();
 					arrayDelete( variables.created.roles, id );
+
+					var remaining = expectOk( variables.lm.getUserRoles(), "getUserRoles after delete" );
+					expect( hasId( idsOf( collectionResults( remaining ) ), id ) ).toBeFalse();
 				} );
 			} );
 
@@ -855,10 +1215,28 @@ component extends="tests.ColdboxBase" {
 	}
 
 	private any function expectOk( required result, string label = "" ) {
-		expect( arguments.result.isOk() ).toBeTrue(
+		expect( arguments.result.status() ).toBe(
+			200,
 			"#arguments.label# HTTP #arguments.result.status()# #arguments.result.message()#"
 		);
 		return arguments.result.data();
+	}
+
+	private void function expectGone( required result, required string term, numeric id = 0 ) {
+		var code = listFindNoCase( "media,user", arguments.term ) ? 404 : 400;
+		var msg  = "";
+		if ( lCase( arguments.term ) == "subscriber" ) {
+			msg = "Subscriber (#arguments.id#: ) not found";
+		} else if ( lCase( arguments.term ) == "media" ) {
+			msg = "not found";
+		} else {
+			msg = "#arguments.term# not found";
+		}
+		expect( arguments.result.status() ).toBe(
+			code,
+			"expected #code# for missing #arguments.term#, got #arguments.result.status()# #arguments.result.message()#"
+		);
+		expect( arguments.result.message() ).toBe( msg );
 	}
 
 	private void function expectHit( required result, string label = "" ) {
@@ -872,6 +1250,48 @@ component extends="tests.ColdboxBase" {
 			0,
 			"#arguments.label# unexpected HTTP #arguments.result.status()# #arguments.result.message()#"
 		);
+	}
+
+	private array function collectionResults( required any data ) {
+		if ( isArray( arguments.data ) ) {
+			return arguments.data;
+		}
+		if ( isStruct( arguments.data ) && structKeyExists( arguments.data, "results" ) && isArray( arguments.data.results ) ) {
+			return arguments.data.results;
+		}
+		return [];
+	}
+
+	private array function idsOf( required any items ) {
+		var ids  = [];
+		var rows = isArray( arguments.items ) ? arguments.items : [];
+		for ( var item in rows ) {
+			if ( isStruct( item ) && structKeyExists( item, "id" ) ) {
+				arrayAppend( ids, val( item.id ) );
+			}
+		}
+		return ids;
+	}
+
+	private boolean function hasId( required array ids, required numeric id ) {
+		return arrayFind( arguments.ids, arguments.id ) > 0;
+	}
+
+	private array function subscriberListIds( required struct sub ) {
+		return idsOf( arguments.sub.lists ?: [] );
+	}
+
+	private struct function findSubscriberByEmail( required string email ) {
+		var data = expectOk(
+			variables.lm.getSubscribers( { "query" : emailQuery( arguments.email ) } ),
+			"getSubscribers #arguments.email#"
+		);
+		for ( var row in collectionResults( data ) ) {
+			if ( ( row.email ?: "" ) == arguments.email ) {
+				return row;
+			}
+		}
+		return {};
 	}
 
 	private string function emailQuery( required string email ) {
@@ -889,19 +1309,26 @@ component extends="tests.ColdboxBase" {
 		return variables.lm.extractIdFromData( arguments.data );
 	}
 
-	private numeric function createTempSubscriber( required string slug, string email = "" ) {
+	private numeric function createTempSubscriber(
+		required string slug,
+		string email = "",
+		array lists  = []
+	) {
 		var addr = len( arguments.email ) ? arguments.email : "spec-#arguments.slug#-#variables.suffix#@example.test";
+		var listIds = arrayLen( arguments.lists ) ? arguments.lists : [ variables.listId ];
 		var data = expectOk(
 			variables.lm.createSubscriber( {
 				"email"                    : addr,
 				"name"                     : "Spec #arguments.slug#",
 				"status"                   : "enabled",
-				"lists"                    : [ variables.listId ],
+				"lists"                    : listIds,
 				"preconfirm_subscriptions" : true
 			} ),
 			"createTempSubscriber #arguments.slug#"
 		);
-		return val( data.id );
+		var id = val( data.id );
+		arrayAppend( variables.created.subscribers, id );
+		return id;
 	}
 
 	private numeric function firstUserId( required any data ) {

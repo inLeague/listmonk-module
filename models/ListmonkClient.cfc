@@ -121,8 +121,22 @@ component accessors="true" {
 
 		req.setUrl( arguments.path );
 		req.setProperties( { "method" : arguments.method } );
+
 		if ( !structIsEmpty( arguments.params ) ) {
 			req.setEncodeUrl( false );
+			for ( var key in arguments.params ) {
+				var val  = arguments.params[ key ];
+				var name = lCase( key );
+				if ( isArray( val ) ) {
+					for ( var item in val ) {
+						req.appendQueryParam( name, toString( item ) );
+					}
+				} else if ( isBoolean( val ) && !isNumeric( val ) ) {
+					req.setQueryParam( name, val ? "true" : "false" );
+				} else {
+					req.setQueryParam( name, arguments.params[ key ] );
+				}
+			}
 		}
 
 		// Multipart: wrap body as JSON string in multipartJsonField, attach files
@@ -143,19 +157,6 @@ component accessors="true" {
 			}
 		} else if ( !structIsEmpty( arguments.body ) ) {
 			req.setProperties( { "body" : arguments.body } );
-		}
-
-		if ( !structIsEmpty( arguments.params ) ) {
-			for ( var key in arguments.params ) {
-				var val = arguments.params[ key ];
-				if ( isArray( val ) ) {
-					for ( var item in val ) {
-						req.appendQueryParam( key, toString( item ) );
-					}
-				} else {
-					req.setQueryParam( key, arguments.params[ key ] );
-				}
-			}
 		}
 
 		var rawResponse = "";
@@ -432,13 +433,11 @@ component accessors="true" {
 	 * @return ListmonkResponse
 	 */
 	function bulkDeleteSubscribers( required array ids ) {
-		var params = {};
-		if ( arrayLen( arguments.ids ) == 1 ) {
-			params.id = arguments.ids[ 1 ];
-		} else {
-			params.id = arguments.ids;
-		}
-		return makeRequest( method = "DELETE", path = "/api/subscribers", params = params );
+		return makeRequest(
+			method = "DELETE",
+			path   = "/api/subscribers",
+			params = { "id" : arguments.ids }
+		);
 	}
 
 	/**
@@ -599,10 +598,10 @@ component accessors="true" {
 	function deleteLists( array ids = [], string query = "" ) {
 		var params = {};
 		if ( arrayLen( arguments.ids ) ) {
-			params.id = arguments.ids;
+			params[ "id" ] = arguments.ids;
 		}
 		if ( len( arguments.query ) ) {
-			params.query = arguments.query;
+			params[ "query" ] = arguments.query;
 		}
 		return makeRequest( method = "DELETE", path = "/api/lists", params = params );
 	}
@@ -1245,8 +1244,12 @@ component accessors="true" {
 	 *
 	 * @return ListmonkResponse
 	 */
-	function gcCampaignAnalytics( required string type ) {
-		return makeRequest( method = "DELETE", path = "/api/maintenance/analytics/#arguments.type#" );
+	function gcCampaignAnalytics( required string type, struct params = {} ) {
+		return makeRequest(
+			method = "DELETE",
+			path   = "/api/maintenance/analytics/#arguments.type#",
+			params = arguments.params
+		);
 	}
 
 	/**
@@ -1412,7 +1415,7 @@ component accessors="true" {
 	 * @return ListmonkResponse
 	 */
 	function deleteUsers( required array ids ) {
-		return makeRequest( method = "DELETE", path = "/api/users", params = { id : arguments.ids } );
+		return makeRequest( method = "DELETE", path = "/api/users", params = { "id" : arguments.ids } );
 	}
 
 	/**
