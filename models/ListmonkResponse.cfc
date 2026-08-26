@@ -7,6 +7,7 @@
  *   - status() for the HTTP status code
  *   - message() for error messages
  *   - raw() for the underlying HyperResponse
+ *   - getOkOrFail() - get the result if succesfull, or if the response was non-success, throw an error
  *
  * @author inLeague LLC
  */

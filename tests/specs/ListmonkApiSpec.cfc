@@ -111,6 +111,44 @@ component extends="tests.ColdboxBase" {
 	}
 
 	function run() {
+		describe( "ListmonkResponse", function() {
+
+			it( "isOk, status, data, message, raw, and getOkOrFail on a 2xx", function() {
+				var ok = variables.lm.getList( variables.listId );
+
+				expect( ok.isOk() ).toBeTrue();
+				expect( ok.isError() ).toBeFalse();
+				expect( ok.status() ).toBe( 200 );
+				expect( ok.message() ).toBe( "" );
+
+				var payload = ok.data();
+				expect( payload ).toBeStruct();
+				expect( payload.id ).toBe( variables.listId );
+				expect( payload.name ).toInclude( "spec-list-#variables.suffix#" );
+
+				expect( isObject( ok.raw() ) ).toBeTrue();
+				expect( ok.raw().getStatusCode() ).toBe( 200 );
+				expect( ok.getOkOrFail() ).toBe( payload );
+			} );
+
+			it( "isError, status, message, raw, and getOkOrFail on a 4xx", function() {
+				var err = variables.lm.getList( 999999 );
+
+				expect( err.isOk() ).toBeFalse();
+				expect( err.isError() ).toBeTrue();
+				expect( err.status() ).toBe( 400 );
+				expect( err.message() ).toBe( "List not found" );
+
+				expect( isObject( err.raw() ) ).toBeTrue();
+				expect( err.raw().getStatusCode() ).toBe( 400 );
+
+				expect( function() {
+					err.getOkOrFail();
+				} ).toThrow( type = "ListmonkResponse.ErrorResponse", regex = "List not found" );
+			} );
+
+		} );
+
 		describe( "Listmonk API", function() {
 
 			describe( "health and dashboard", function() {
