@@ -42,5 +42,7 @@ fi
 
 restore_creds_owner
 
+mkdir -p /listmonk/uploads
+
 ./listmonk --upgrade --yes --config ''
 exec ./listmonk --config ''

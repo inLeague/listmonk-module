@@ -1,6 +1,6 @@
 # Listmonk Module
 
-A ColdBox module for interacting with a [Listmonk](https://listmonk.app) email server. Provides a typed API client built on [Hyper](https://hyper.ortusbooks.com) covering transactional email, subscribers, lists, templates, and more.
+A ColdBox module for interacting with a [Listmonk](https://listmonk.app) email server. Provides an API client built on [Hyper](https://hyper.ortusbooks.com) covering transactional email, subscribers, lists, templates, and more.
 
 ## Requirements
 

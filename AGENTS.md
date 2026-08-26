@@ -1,6 +1,6 @@
 # Listmonk ColdBox module — agent instructions
 
-Typed Hyper HTTP client for [Listmonk](https://listmonk.app). WireBox IDs from `autoMapModels` + `modelNamespace`: `ListmonkClient@listmonk`, `ListmonkResponse@listmonk`.
+Hyper HTTP client for [Listmonk](https://listmonk.app). WireBox IDs from `autoMapModels` + `modelNamespace`: `ListmonkClient@listmonk`, `ListmonkResponse@listmonk`.
 
 ## Hyper client (boot order)
 

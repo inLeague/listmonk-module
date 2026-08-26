@@ -103,26 +103,37 @@ component accessors="true" {
 	 * @path        API path relative to the configured base URL
 	 * @body        Request body struct (for JSON APIs)
 	 * @params      Query string parameters
-	 * @attachments Array of file attachment structs: [{ name, path, mimeType }]
+	 * @attachments         Array of file attachment structs: [{ name, path, mimeType }]
+	 * @multipartJsonField  Form field name for the JSON body when uploading files (`data` for /api/tx, `params` for import). Empty to omit.
 	 *
 	 * @return ListmonkResponse
 	 */
 	private function makeRequest(
 		required string method,
 		required string path,
-		struct body       = {},
-		struct params     = {},
-		array attachments = []
+		struct body               = {},
+		struct params             = {},
+		array attachments         = [],
+		string multipartJsonField = "data"
 	) {
 		var hyperInstance = getHyper();
 		var req           = hyperInstance.new();
 
 		req.setUrl( arguments.path );
 		req.setProperties( { "method" : arguments.method } );
+		if ( !structIsEmpty( arguments.params ) ) {
+			req.setEncodeUrl( false );
+		}
 
-		// Multipart: wrap body as JSON string in "data" field, attach files
+		// Multipart: wrap body as JSON string in multipartJsonField, attach files
 		if ( arrayLen( arguments.attachments ) ) {
-			req.setProperties( { "body" : { "data" : serializeJSON( arguments.body ) } } );
+			if ( len( arguments.multipartJsonField ) && !structIsEmpty( arguments.body ) ) {
+				req.setProperties( {
+					"body" : { "#arguments.multipartJsonField#" : serializeJSON( arguments.body ) }
+				} );
+			} else if ( !structIsEmpty( arguments.body ) ) {
+				req.setProperties( { "body" : arguments.body } );
+			}
 			for ( var file in arguments.attachments ) {
 				req.attach(
 					name     = file.name,
@@ -135,7 +146,16 @@ component accessors="true" {
 		}
 
 		if ( !structIsEmpty( arguments.params ) ) {
-			req.withQueryParams( arguments.params );
+			for ( var key in arguments.params ) {
+				var val = arguments.params[ key ];
+				if ( isArray( val ) ) {
+					for ( var item in val ) {
+						req.appendQueryParam( key, toString( item ) );
+					}
+				} else {
+					req.setQueryParam( key, arguments.params[ key ] );
+				}
+			}
 		}
 
 		var rawResponse = "";
@@ -186,6 +206,24 @@ component accessors="true" {
 	 */
 	function healthCheck() {
 		return makeRequest( method = "GET", path = "/api/health" );
+	}
+
+	/**
+	 * Dashboard chart data points.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getDashboardCharts() {
+		return makeRequest( method = "GET", path = "/api/dashboard/charts" );
+	}
+
+	/**
+	 * Dashboard stat counts.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getDashboardCounts() {
+		return makeRequest( method = "GET", path = "/api/dashboard/counts" );
 	}
 
 	/**
@@ -394,7 +432,13 @@ component accessors="true" {
 	 * @return ListmonkResponse
 	 */
 	function bulkDeleteSubscribers( required array ids ) {
-		return makeRequest( method = "DELETE", path = "/api/subscribers", body = { ids : arguments.ids } );
+		var params = {};
+		if ( arrayLen( arguments.ids ) == 1 ) {
+			params.id = arguments.ids[ 1 ];
+		} else {
+			params.id = arguments.ids;
+		}
+		return makeRequest( method = "DELETE", path = "/api/subscribers", params = params );
 	}
 
 	/**
@@ -417,6 +461,17 @@ component accessors="true" {
 	 */
 	function blocklistSubscribersByQuery( required struct payload ) {
 		return makeRequest( method = "PUT", path = "/api/subscribers/query/blocklist", body = arguments.payload );
+	}
+
+	/**
+	 * Bulk modify list memberships using a subscriber SQL/search query.
+	 *
+	 * @payload Query list-membership payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function manageSubscriberListsByQuery( required struct payload ) {
+		return makeRequest( method = "PUT", path = "/api/subscribers/query/lists", body = arguments.payload );
 	}
 
 	/**
@@ -541,8 +596,15 @@ component accessors="true" {
 	 *
 	 * @return ListmonkResponse
 	 */
-	function deleteLists( required array ids ) {
-		return makeRequest( method = "DELETE", path = "/api/lists", body = { ids : arguments.ids } );
+	function deleteLists( array ids = [], string query = "" ) {
+		var params = {};
+		if ( arrayLen( arguments.ids ) ) {
+			params.id = arguments.ids;
+		}
+		if ( len( arguments.query ) ) {
+			params.query = arguments.query;
+		}
+		return makeRequest( method = "DELETE", path = "/api/lists", params = params );
 	}
 
 	// =========================================================================
@@ -614,6 +676,28 @@ component accessors="true" {
 	 */
 	function deleteTemplate( required numeric id ) {
 		return makeRequest( method = "DELETE", path = "/api/templates/#arguments.id#" );
+	}
+
+	/**
+	 * Preview an unsaved template body.
+	 *
+	 * @data Preview payload (body, template type, etc.)
+	 *
+	 * @return ListmonkResponse
+	 */
+	function previewTemplate( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/templates/preview", body = arguments.data );
+	}
+
+	/**
+	 * Preview a saved template by ID.
+	 *
+	 * @id Template ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function previewTemplateById( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/templates/#arguments.id#/preview" );
 	}
 
 	// =========================================================================
@@ -748,8 +832,680 @@ component accessors="true" {
 		);
 	}
 
+	// =========================================================================
+	// Bounces
+	// =========================================================================
 
+	/**
+	 * List bounce records.
+	 *
+	 * @params Query parameters (page, per_page, campaign_id, source, order_by, order)
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getBounces( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/bounces", params = arguments.params );
+	}
 
+	/**
+	 * Get a bounce record by ID.
+	 *
+	 * @id Bounce ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getBounce( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/bounces/#arguments.id#" );
+	}
+
+	/**
+	 * Delete bounce records (by id list or all=true).
+	 *
+	 * @params Query parameters: { id: [1,2] } or { all: true }
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteBounces( struct params = {} ) {
+		return makeRequest( method = "DELETE", path = "/api/bounces", params = arguments.params );
+	}
+
+	/**
+	 * Delete a bounce record by ID.
+	 *
+	 * @id Bounce ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteBounce( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/bounces/#arguments.id#" );
+	}
+
+	/**
+	 * Blocklist all subscribers that have bounce records.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function blocklistBouncedSubscribers() {
+		return makeRequest( method = "PUT", path = "/api/bounces/blocklist" );
+	}
+
+	// =========================================================================
+	// Import
+	// =========================================================================
+
+	/**
+	 * Get subscriber import status.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getImportSubscribers() {
+		return makeRequest( method = "GET", path = "/api/import/subscribers" );
+	}
+
+	/**
+	 * Start a subscriber import (multipart: params JSON + file).
+	 *
+	 * @params   Import options (mode, delim, lists, overwrite, subscription_status)
+	 * @filePath Path to CSV/file on disk
+	 * @mimeType Optional MIME type
+	 *
+	 * @return ListmonkResponse
+	 */
+	function importSubscribers(
+		required struct params,
+		required string filePath,
+		string mimeType = "text/csv"
+	) {
+		return makeRequest(
+			method             = "POST",
+			path               = "/api/import/subscribers",
+			body               = arguments.params,
+			attachments        = [ { name : "file", path : arguments.filePath, mimeType : arguments.mimeType } ],
+			multipartJsonField = "params"
+		);
+	}
+
+	/**
+	 * Stop a running subscriber import.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function stopImportSubscribers() {
+		return makeRequest( method = "DELETE", path = "/api/import/subscribers" );
+	}
+
+	/**
+	 * Get subscriber import logs.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getImportSubscriberLogs() {
+		return makeRequest( method = "GET", path = "/api/import/subscribers/logs" );
+	}
+
+	// =========================================================================
+	// Campaigns
+	// =========================================================================
+
+	/**
+	 * List campaigns.
+	 *
+	 * @params Query parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getCampaigns( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/campaigns", params = arguments.params );
+	}
+
+	/**
+	 * Get a campaign by ID.
+	 *
+	 * @id     Campaign ID
+	 * @params Query parameters (e.g. no_body)
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getCampaign( required numeric id, struct params = {} ) {
+		return makeRequest(
+			method = "GET",
+			path   = "/api/campaigns/#arguments.id#",
+			params = arguments.params
+		);
+	}
+
+	/**
+	 * Create a campaign.
+	 *
+	 * @data Campaign body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function createCampaign( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/campaigns", body = arguments.data );
+	}
+
+	/**
+	 * Update a campaign.
+	 *
+	 * @id   Campaign ID
+	 * @data Campaign body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateCampaign( required numeric id, required struct data ) {
+		return makeRequest( method = "PUT", path = "/api/campaigns/#arguments.id#", body = arguments.data );
+	}
+
+	/**
+	 * Delete a campaign.
+	 *
+	 * @id Campaign ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteCampaign( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/campaigns/#arguments.id#" );
+	}
+
+	/**
+	 * Delete campaigns by ID list or search query.
+	 *
+	 * @params Query parameters: { id: [1,2] } or { query: "..." }
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteCampaigns( struct params = {} ) {
+		return makeRequest( method = "DELETE", path = "/api/campaigns", params = arguments.params );
+	}
+
+	/**
+	 * Running campaign stats.
+	 *
+	 * @params Query parameters (campaign_id)
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getRunningCampaignStats( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/campaigns/running/stats", params = arguments.params );
+	}
+
+	/**
+	 * Campaign analytics by type (views, clicks, links, bounces).
+	 *
+	 * @type   Analytics type
+	 * @params Query parameters (id, from, to)
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getCampaignAnalytics( required string type, struct params = {} ) {
+		return makeRequest(
+			method = "GET",
+			path   = "/api/campaigns/analytics/#arguments.type#",
+			params = arguments.params
+		);
+	}
+
+	/**
+	 * HTML preview of a campaign.
+	 *
+	 * @id Campaign ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function previewCampaign( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/campaigns/#arguments.id#/preview" );
+	}
+
+	/**
+	 * Preview campaign with a posted body.
+	 *
+	 * @id   Campaign ID
+	 * @data Preview payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function previewCampaignBody( required numeric id, required struct data ) {
+		return makeRequest(
+			method = "POST",
+			path   = "/api/campaigns/#arguments.id#/preview",
+			body   = arguments.data
+		);
+	}
+
+	/**
+	 * Preview archived campaign HTML.
+	 *
+	 * @id   Campaign ID
+	 * @data Archive preview payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function previewCampaignArchive( required numeric id, struct data = {} ) {
+		return makeRequest(
+			method = "POST",
+			path   = "/api/campaigns/#arguments.id#/preview/archive",
+			body   = arguments.data
+		);
+	}
+
+	/**
+	 * Preview campaign as plain text.
+	 *
+	 * @id   Campaign ID
+	 * @data Optional body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function previewCampaignText( required numeric id, struct data = {} ) {
+		return makeRequest(
+			method = "POST",
+			path   = "/api/campaigns/#arguments.id#/text",
+			body   = arguments.data
+		);
+	}
+
+	/**
+	 * Replace campaign content.
+	 *
+	 * @id   Campaign ID
+	 * @data Content payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function setCampaignContent( required numeric id, required struct data ) {
+		return makeRequest(
+			method = "POST",
+			path   = "/api/campaigns/#arguments.id#/content",
+			body   = arguments.data
+		);
+	}
+
+	/**
+	 * Send a campaign test to arbitrary subscriber emails.
+	 *
+	 * @id   Campaign ID
+	 * @data Payload including subscribers: [emails]
+	 *
+	 * @return ListmonkResponse
+	 */
+	function testCampaign( required numeric id, required struct data ) {
+		return makeRequest(
+			method = "POST",
+			path   = "/api/campaigns/#arguments.id#/test",
+			body   = arguments.data
+		);
+	}
+
+	/**
+	 * Change campaign status (draft, scheduled, running, paused, cancelled).
+	 *
+	 * @id   Campaign ID
+	 * @data { status: "..." }
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateCampaignStatus( required numeric id, required struct data ) {
+		return makeRequest(
+			method = "PUT",
+			path   = "/api/campaigns/#arguments.id#/status",
+			body   = arguments.data
+		);
+	}
+
+	/**
+	 * Publish or unpublish a campaign on the public archive.
+	 *
+	 * @id   Campaign ID
+	 * @data Archive payload
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateCampaignArchive( required numeric id, required struct data ) {
+		return makeRequest(
+			method = "PUT",
+			path   = "/api/campaigns/#arguments.id#/archive",
+			body   = arguments.data
+		);
+	}
+
+	// =========================================================================
+	// Media
+	// =========================================================================
+
+	/**
+	 * List uploaded media.
+	 *
+	 * @params Query parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getMedia( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/media", params = arguments.params );
+	}
+
+	/**
+	 * Get a media item by ID.
+	 *
+	 * @id Media ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getMediaById( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/media/#arguments.id#" );
+	}
+
+	/**
+	 * Upload a media file.
+	 *
+	 * @filePath Path to the file on disk
+	 * @mimeType Optional MIME type
+	 *
+	 * @return ListmonkResponse
+	 */
+	function uploadMedia( required string filePath, string mimeType = "" ) {
+		return makeRequest(
+			method             = "POST",
+			path               = "/api/media",
+			attachments        = [ { name : "file", path : arguments.filePath, mimeType : arguments.mimeType } ],
+			multipartJsonField = ""
+		);
+	}
+
+	/**
+	 * Delete a media item.
+	 *
+	 * @id Media ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteMedia( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/media/#arguments.id#" );
+	}
+
+	// =========================================================================
+	// Maintenance
+	// =========================================================================
+
+	/**
+	 * Garbage-collect subscribers by type (blocklisted, orphans).
+	 *
+	 * @type Subscriber GC type
+	 *
+	 * @return ListmonkResponse
+	 */
+	function gcSubscribers( required string type ) {
+		return makeRequest( method = "DELETE", path = "/api/maintenance/subscribers/#arguments.type#" );
+	}
+
+	/**
+	 * Garbage-collect campaign analytics by type (views, clicks, links, bounces).
+	 *
+	 * @type Analytics type
+	 *
+	 * @return ListmonkResponse
+	 */
+	function gcCampaignAnalytics( required string type ) {
+		return makeRequest( method = "DELETE", path = "/api/maintenance/analytics/#arguments.type#" );
+	}
+
+	/**
+	 * Export campaign analytics by type.
+	 *
+	 * @type   Analytics type
+	 * @params Query parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	function exportCampaignAnalytics( required string type, struct params = {} ) {
+		return makeRequest(
+			method = "GET",
+			path   = "/api/maintenance/analytics/#arguments.type#/export",
+			params = arguments.params
+		);
+	}
+
+	/**
+	 * Garbage-collect unconfirmed subscriptions.
+	 *
+	 * @params Query parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	function gcUnconfirmedSubscriptions( struct params = {} ) {
+		return makeRequest(
+			method = "DELETE",
+			path   = "/api/maintenance/subscriptions/unconfirmed",
+			params = arguments.params
+		);
+	}
+
+	// =========================================================================
+	// Public API
+	// =========================================================================
+
+	/**
+	 * Public lists (unauthenticated; still works with the API token).
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getPublicLists() {
+		return makeRequest( method = "GET", path = "/api/public/lists" );
+	}
+
+	/**
+	 * Public subscription form submit.
+	 *
+	 * @data { email, name, list_uuids / uuid, ... }
+	 *
+	 * @return ListmonkResponse
+	 */
+	function publicSubscription( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/public/subscription", body = arguments.data );
+	}
+
+	/**
+	 * Altcha captcha challenge for public forms.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getAltchaChallenge() {
+		return makeRequest( method = "GET", path = "/api/public/captcha/altcha" );
+	}
+
+	/**
+	 * Public campaign archive listing (when enabled).
+	 *
+	 * @params Query parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getCampaignArchives( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/public/archive", params = arguments.params );
+	}
+
+	// =========================================================================
+	// Users, profile, roles
+	// =========================================================================
+
+	/**
+	 * Current user profile.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getProfile() {
+		return makeRequest( method = "GET", path = "/api/profile" );
+	}
+
+	/**
+	 * Update current user profile.
+	 *
+	 * @data Profile body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateProfile( required struct data ) {
+		return makeRequest( method = "PUT", path = "/api/profile", body = arguments.data );
+	}
+
+	/**
+	 * List users.
+	 *
+	 * @params Query parameters
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getUsers( struct params = {} ) {
+		return makeRequest( method = "GET", path = "/api/users", params = arguments.params );
+	}
+
+	/**
+	 * Get a user by ID.
+	 *
+	 * @id User ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getUser( required numeric id ) {
+		return makeRequest( method = "GET", path = "/api/users/#arguments.id#" );
+	}
+
+	/**
+	 * Create a user.
+	 *
+	 * @data User body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function createUser( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/users", body = arguments.data );
+	}
+
+	/**
+	 * Update a user.
+	 *
+	 * @id   User ID
+	 * @data User body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateUser( required numeric id, required struct data ) {
+		return makeRequest( method = "PUT", path = "/api/users/#arguments.id#", body = arguments.data );
+	}
+
+	/**
+	 * Delete a user.
+	 *
+	 * @id User ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteUser( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/users/#arguments.id#" );
+	}
+
+	/**
+	 * Delete users by ID list.
+	 *
+	 * @ids Array of user IDs
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteUsers( required array ids ) {
+		return makeRequest( method = "DELETE", path = "/api/users", params = { id : arguments.ids } );
+	}
+
+	/**
+	 * Logout the current session.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function logout() {
+		return makeRequest( method = "POST", path = "/api/logout" );
+	}
+
+	/**
+	 * User roles.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getUserRoles() {
+		return makeRequest( method = "GET", path = "/api/roles/users" );
+	}
+
+	/**
+	 * List roles.
+	 *
+	 * @return ListmonkResponse
+	 */
+	function getListRoles() {
+		return makeRequest( method = "GET", path = "/api/roles/lists" );
+	}
+
+	/**
+	 * Create a user role.
+	 *
+	 * @data Role body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function createUserRole( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/roles/users", body = arguments.data );
+	}
+
+	/**
+	 * Create a list role.
+	 *
+	 * @data Role body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function createListRole( required struct data ) {
+		return makeRequest( method = "POST", path = "/api/roles/lists", body = arguments.data );
+	}
+
+	/**
+	 * Update a user role.
+	 *
+	 * @id   Role ID
+	 * @data Role body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateUserRole( required numeric id, required struct data ) {
+		return makeRequest(
+			method = "PUT",
+			path   = "/api/roles/users/#arguments.id#",
+			body   = arguments.data
+		);
+	}
+
+	/**
+	 * Update a list role.
+	 *
+	 * @id   Role ID
+	 * @data Role body
+	 *
+	 * @return ListmonkResponse
+	 */
+	function updateListRole( required numeric id, required struct data ) {
+		return makeRequest(
+			method = "PUT",
+			path   = "/api/roles/lists/#arguments.id#",
+			body   = arguments.data
+		);
+	}
+
+	/**
+	 * Delete a role by ID.
+	 *
+	 * @id Role ID
+	 *
+	 * @return ListmonkResponse
+	 */
+	function deleteRole( required numeric id ) {
+		return makeRequest( method = "DELETE", path = "/api/roles/#arguments.id#" );
+	}
 
 	// =========================================================================
 	// Webhook Management

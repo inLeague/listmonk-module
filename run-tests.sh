@@ -2,6 +2,8 @@
 
 ##
 ## ./run-tests.sh --- run locally
+##   - the local test runner will leave all containers running, meaning this script can be used
+##     to boot all the relevant services, making it easier to get into a develop/test flow.
 ## act -j tests   --- run github "tests" action locally via "act" (install act via ./get-act.sh)
 ##
 

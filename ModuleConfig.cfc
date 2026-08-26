@@ -1,7 +1,7 @@
 /**
  * Listmonk Module — ColdBox module for Listmonk email server integration.
  *
- * Provides a typed API client for transactional email, subscribers,
+ * Provides an API client for transactional email, subscribers,
  * lists, templates, and other Listmonk resources via Hyper HTTP client.
  *
  * Models under models/ are auto-mapped as {Name}@listmonk

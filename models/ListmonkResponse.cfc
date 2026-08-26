@@ -1,5 +1,5 @@
 /**
- * Typed response wrapper for Listmonk API responses.
+ * Response wrapper for Listmonk API responses.
  *
  * Wraps the raw Hyper response to provide a consistent interface:
  *   - isOk() / isError() for status checking
