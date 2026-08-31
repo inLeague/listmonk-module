@@ -1734,20 +1734,44 @@ component accessors="true" {
 			}
 		}
 
+		if ( existingId ) {
+			// Do not send `lists` on PATCH: Listmonk treats a present lists key as
+			// replace, which would drop memberships on other lists.
+			var patch = {
+				"email"                    : arguments.email,
+				"name"                     : arguments.name,
+				"preconfirm_subscriptions" : arguments.preconfirmSubscriptions
+			};
+			if ( !structIsEmpty( arguments.attribs ) ) {
+				patch.attribs = arguments.attribs;
+			}
+			var patched = patchSubscriber( id = existingId, data = patch );
+			if ( !patched.isOk() ) {
+				return patched;
+			}
+			if ( arrayLen( arguments.listIds ) ) {
+				var added = addSubscribersToLists(
+					subscriberIds = [ existingId ],
+					listIds       = arguments.listIds,
+					status        = arguments.preconfirmSubscriptions ? "confirmed" : "unconfirmed"
+				);
+				if ( !added.isOk() ) {
+					return added;
+				}
+			}
+			return getSubscriber( existingId );
+		}
+
 		var payload = {
 			"email"                    : arguments.email,
 			"name"                     : arguments.name,
 			"lists"                    : arguments.listIds,
-			"attribs"                  : arguments.attribs,
 			"preconfirm_subscriptions" : arguments.preconfirmSubscriptions
 		};
-
-		if ( existingId ) {
-			// PATCH preserves existing list subscriptions; PUT clears them
-			return patchSubscriber( id = existingId, data = payload );
-		} else {
-			return createSubscriber( data = payload );
+		if ( !structIsEmpty( arguments.attribs ) ) {
+			payload.attribs = arguments.attribs;
 		}
+		return createSubscriber( data = payload );
 	}
 
 	/**
