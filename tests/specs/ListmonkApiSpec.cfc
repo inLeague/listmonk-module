@@ -532,7 +532,10 @@ component extends="tests.ColdboxBase" {
 					var extraEmail = "spec-qdel-#variables.suffix#@example.test";
 					var extra = createTempSubscriber( "qdel", extraEmail );
 					expect( variables.lm.getSubscriber( extra ).status() ).toBe( 200 );
-					expect( findSubscriberByEmail( extraEmail ).id ).toBe( extra );
+					var before = collectionResults(
+						expectOk( variables.lm.findSubscriberByEmail( extraEmail ), "findSubscriberByEmail before query delete" )
+					);
+					expect( before[ 1 ].id ).toBe( extra );
 
 					var deleted = variables.lm.deleteSubscribersByQuery( {
 						"query" : emailQuery( extraEmail )
@@ -541,7 +544,9 @@ component extends="tests.ColdboxBase" {
 					expect( deleted.data() ).toBeTrue();
 
 					expectGone( variables.lm.getSubscriber( extra ), "Subscriber", extra );
-					expect( structIsEmpty( findSubscriberByEmail( extraEmail ) ) ).toBeTrue();
+					expect( arrayLen( collectionResults(
+						expectOk( variables.lm.findSubscriberByEmail( extraEmail ), "findSubscriberByEmail after query delete" )
+					) ) ).toBe( 0 );
 				} );
 			} );
 
@@ -948,8 +953,11 @@ component extends="tests.ColdboxBase" {
 
 					var found = {};
 					for ( var i = 1; i <= 40; i++ ) {
-						found = findSubscriberByEmail( importEmail );
-						if ( !structIsEmpty( found ) ) {
+						var rows = collectionResults(
+							expectOk( variables.lm.findSubscriberByEmail( importEmail ), "findSubscriberByEmail import" )
+						);
+						if ( arrayLen( rows ) ) {
+							found = rows[ 1 ];
 							break;
 						}
 						sleep( 250 );
@@ -1060,7 +1068,9 @@ component extends="tests.ColdboxBase" {
 
 				it( "POST /api/public/subscription", function() {
 					var email = "spec-pub-#variables.suffix#@example.test";
-					expect( structIsEmpty( findSubscriberByEmail( email ) ) ).toBeTrue();
+					expect( arrayLen( collectionResults(
+						expectOk( variables.lm.findSubscriberByEmail( email ), "findSubscriberByEmail before public sub" )
+					) ) ).toBe( 0 );
 
 					var subscribed = variables.lm.publicSubscription( {
 						"email"      : email,
@@ -1069,10 +1079,12 @@ component extends="tests.ColdboxBase" {
 					} );
 					expect( subscribed.status() ).toBe( 200, "publicSubscription HTTP #subscribed.status()# #subscribed.message()#" );
 
-					var found = findSubscriberByEmail( email );
-					expect( found.email ?: "" ).toBe( email );
-					expect( found.name ).toBe( "Public Spec" );
-					expect( hasId( subscriberListIds( found ), variables.publicListId ) ).toBeTrue();
+					var found = collectionResults(
+						expectOk( variables.lm.findSubscriberByEmail( email ), "findSubscriberByEmail after public sub" )
+					);
+					expect( found[ 1 ].email ?: "" ).toBe( email );
+					expect( found[ 1 ].name ).toBe( "Public Spec" );
+					expect( hasId( subscriberListIds( found[ 1 ] ), variables.publicListId ) ).toBeTrue();
 				} );
 
 				it( "GET /api/public/captcha/altcha", function() {
@@ -1278,19 +1290,6 @@ component extends="tests.ColdboxBase" {
 
 	private array function subscriberListIds( required struct sub ) {
 		return idsOf( arguments.sub.lists ?: [] );
-	}
-
-	private struct function findSubscriberByEmail( required string email ) {
-		var data = expectOk(
-			variables.lm.getSubscribers( { "query" : emailQuery( arguments.email ) } ),
-			"getSubscribers #arguments.email#"
-		);
-		for ( var row in collectionResults( data ) ) {
-			if ( ( row.email ?: "" ) == arguments.email ) {
-				return row;
-			}
-		}
-		return {};
 	}
 
 	private string function emailQuery( required string email ) {

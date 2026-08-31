@@ -1663,7 +1663,14 @@ component accessors="true" {
 	 * @return ListmonkResponse — data contains the subscriber or null
 	 */
 	function findSubscriberByEmail( required string email, numeric listId ) {
-		var query = "subscribers.email = ''#arguments.email#''";
+		if (!isValid("email", email)) {
+			// `query` is apparently straight up sql injected into the postgres on their side,
+			// so this is some defense in depth.
+			throw "invalid email '#email#'";
+		}
+
+		var query = "subscribers.email = '#arguments.email#'";
+
 		var params = { "query" : query, "per_page" : 1 };
 		if ( !isNull( arguments.listId ) ) {
 			params.list_id = arguments.listId;
